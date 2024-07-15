@@ -5,7 +5,7 @@ import scipy.special
 
 
 class Tree:
-    def __init__(self, sample_size, n_states, sequences=None):
+    def __init__(self, sample_size, n_states, max_nodes,sequences=None):
         self.left_child = numpy.full(2 * sample_size - 1, -1)
         self.right_child = numpy.full(2 * sample_size - 1, -1)
         self.parent = numpy.full(2 * sample_size - 1, -1)
@@ -13,6 +13,9 @@ class Tree:
         self.sample_size = sample_size
         self.n_states = n_states
         self.sequences = sequences if sequences is not None else []
+        self._mutations = numpy.zeros(2 * sample_size - 1, dtype=int)
+        self.likelihood = numpy.random.rand(max_nodes, n_states)  
+
 
         # Initialize the tree structure and times
         t = 0
@@ -149,11 +152,15 @@ class Tree:
 
 
     def transition_probability(self, t, mutation_rate, pi):
+        pi = numpy.array(pi)
         exp_term = numpy.exp(-mutation_rate * t)
         p_matrix = exp_term * numpy.eye(self.n_states) + (1 - exp_term) * pi
+        # print(f"Transition Probability Matrix for t={t}, mutation_rate={mutation_rate}:\n{p_matrix}\n")
+        # print(f"mutation_rate = {mutation_rate}, pi = {pi}")
         return p_matrix
 
     def compute_site_log_likelihood(self, site, mutation_rate, pi):
+        pi = numpy.array(pi)
         n_states = self.n_states
         log_likelihoods = numpy.full((len(self.parent), n_states), -numpy.inf)
 
@@ -164,6 +171,7 @@ class Tree:
 
         # Order nodes by their times
         nodes_order = numpy.argsort(self.time)
+        # print(f"Nodes order by time: {nodes_order}")
 
         # Traverse the tree in the order of increasing time
         for node in nodes_order:
@@ -179,13 +187,21 @@ class Tree:
             p_r = self.transition_probability(t_r, mutation_rate, pi)
 
             for s in range(n_states):
-                log_likelihood_l_child = numpy.logaddexp.reduce([log_likelihoods[l_child][sl] + numpy.log(p_l[s][sl]) for sl in range(n_states)])
-                log_likelihood_r_child = numpy.logaddexp.reduce([log_likelihoods[r_child][sr] + numpy.log(p_r[s][sr]) for sr in range(n_states)])
+                log_likelihood_l_child = numpy.logaddexp.reduce(
+                    [log_likelihoods[l_child][sl] + numpy.log(p_l[s][sl]) for sl in range(n_states)]
+                )
+                log_likelihood_r_child = numpy.logaddexp.reduce(
+                    [log_likelihoods[r_child][sr] + numpy.log(p_r[s][sr]) for sr in range(n_states)]
+                )
                 log_likelihoods[node][s] = log_likelihood_l_child + log_likelihood_r_child
+                # print(f"Node {node}, State {s}: log_likelihood_l_child = {log_likelihood_l_child}, log_likelihood_r_child = {log_likelihood_r_child}, log_likelihood = {log_likelihoods[node][s]}")
 
         root = nodes_order[-1]
         # Sum over all possible states at the root
-        root_log_likelihood = numpy.logaddexp.reduce([numpy.log(pi[s]) + log_likelihoods[root][s] for s in range(n_states)])
+        root_log_likelihood = numpy.logaddexp.reduce(
+            [numpy.log(pi[s]) + log_likelihoods[root][s] for s in range(n_states)]
+        )
+        # print(f"Root node log likelihood: {root_log_likelihood}")
         return root_log_likelihood
 
     def compute_log_likelihood(self, mutation_rate, pi):
@@ -193,12 +209,117 @@ class Tree:
         log_likelihood = 0.0
 
         for site in range(n_sites):
+            print(f"\nComputing log likelihood for site {site}")
             site_log_likelihood = self.compute_site_log_likelihood(site, mutation_rate, pi)
             if site_log_likelihood == -numpy.inf:
                 return -numpy.inf  # If any site log-likelihood is -inf, the overall log-likelihood is -inf
             log_likelihood += site_log_likelihood
 
         return log_likelihood
+
+    def compute_gradient(self, mutation_rate, pi):
+        n_sites = len(self.sequences[0])
+        n_states = self.n_states
+        gradients = numpy.zeros(2 * self.sample_size - 1)
+
+        for site in range(n_sites):
+            log_likelihoods = numpy.full((len(self.parent), n_states), -numpy.inf)
+            preorder_partial_likelihoods = numpy.zeros((len(self.parent), n_states))
+
+            # Initialize leaf log-likelihoods based on observed data
+            for leaf in range(self.sample_size):
+                observed_state = self.sequences[leaf][site]
+                log_likelihoods[leaf][observed_state] = 0.0  # log(1) = 0
+                preorder_partial_likelihoods[leaf][observed_state] = 1.0
+
+            # Order nodes by their times
+            nodes_order = numpy.argsort(self.time)
+
+            # Traverse the tree in the order of increasing time
+            for node in nodes_order:
+                if node < self.sample_size:  # Skip leaf nodes
+                    continue
+
+                l_child = self.left_child[node]
+                r_child = self.right_child[node]
+                t_l = self.time[node] - self.time[l_child]
+                t_r = self.time[node] - self.time[r_child]
+
+                p_l = self.transition_probability(t_l, mutation_rate, pi)
+                p_r = self.transition_probability(t_r, mutation_rate, pi)
+
+                for s in range(n_states):
+                    log_likelihood_l_child = numpy.logaddexp.reduce(
+                        [log_likelihoods[l_child][sl] + numpy.log(p_l[s][sl]) for sl in range(n_states)]
+                    )
+                    log_likelihood_r_child = numpy.logaddexp.reduce(
+                        [log_likelihoods[r_child][sr] + numpy.log(p_r[s][sr]) for sr in range(n_states)]
+                    )
+                    log_likelihoods[node][s] = log_likelihood_l_child + log_likelihood_r_child
+
+                    preorder_partial_likelihoods[node][s] = numpy.sum([
+                        preorder_partial_likelihoods[l_child][sl] * p_l[s][sl] +
+                        preorder_partial_likelihoods[r_child][sr] * p_r[s][sr]
+                        for sl in range(n_states) for sr in range(n_states)
+                    ])
+
+            root = nodes_order[-1]
+            root_log_likelihood = numpy.logaddexp.reduce(
+                [numpy.log(pi[s]) + log_likelihoods[root][s] for s in range(n_states)]
+            )
+
+            # Compute the gradient for each branch
+            for node in nodes_order:
+                if node < self.sample_size:  # Skip leaf nodes
+                    continue
+
+                l_child = self.left_child[node]
+                r_child = self.right_child[node]
+                t_l = self.time[node] - self.time[l_child]
+                t_r = self.time[node] - self.time[r_child]
+
+                p_l = self.transition_probability(t_l, mutation_rate, pi)
+                p_r = self.transition_probability(t_r, mutation_rate, pi)
+
+                grad_l = numpy.sum([
+                    preorder_partial_likelihoods[l_child][sl] * (p_l[s][sl] - numpy.eye(n_states)[s, sl])
+                    for sl in range(n_states) for s in range(n_states)
+                ])
+
+                grad_r = numpy.sum([
+                    preorder_partial_likelihoods[r_child][sr] * (p_r[s][sr] - numpy.eye(n_states)[s, sr])
+                    for sr in range(n_states) for s in range(n_states)
+                ])
+
+                gradients[node] += (grad_l + grad_r) / numpy.exp(root_log_likelihood)
+
+        return gradients
+
+
+    @property
+    def mutation_rates(self):
+        return self._mutation_rates
+
+    def resample_mutation_rates(self, step_size=0.1):
+        old_mutation_rates = self._mutation_rates.copy()
+        for node in range(len(self.parent)):
+            new_rate = self._mutation_rates[node] + step_size * numpy.random.randn()
+            self._mutation_rates[node] = abs(new_rate)  # Reflective random walk
+        return old_mutation_rates
+
+    def log_resample_mutation_rates_density(self, old_mutation_rates):
+        log_density = 0.0
+        for node in range(len(self.parent)):
+            old_rate = old_mutation_rates[node]
+            new_rate = self._mutation_rates[node]
+            if old_rate > 0:
+                log_density += -0.5 * ((new_rate - old_rate) ** 2) / (0.1 ** 2)
+            else:
+                log_density += -numpy.inf  # Handle log(0) case explicitly
+        return log_density
+
+
+
 
 
 def generate_root_sequence(seq_length, num_states):
@@ -208,7 +329,7 @@ def mutate_sequence(sequence, time, mutation_rate, num_states):
     seq_length = len(sequence)
     mutated_sequence = sequence.copy()
     num_mutations = numpy.random.poisson(mutation_rate * time * seq_length)
-    mutation_sites = numpy.random.choice(seq_length, num_mutations, replace=False)
+    mutation_sites = numpy.random.choice(seq_length, num_mutations, replace=True)
     for site in mutation_sites:
         mutated_sequence[site] = numpy.random.choice([state for state in range(num_states) if state != mutated_sequence[site]])
     return mutated_sequence

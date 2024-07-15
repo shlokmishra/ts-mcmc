@@ -34,8 +34,6 @@ class Recorder:
     def append_tree(self, tree):
         r = self.edge_table[self.left_edge_below[-1]].right
         for i in range(tree.sample_size, len(self.tree_to_table_map)):
-            # We assume MCMC tree updates always change node time
-            # False positives from floating point comparison inflate memory cost a bit
             if tree.time[i] != self.node_table[self.tree_to_table_map[i]].time:
                 new_node = self.node_table.add_row(time=tree.time[i])
                 self.tree_to_table_map[i] = new_node
@@ -75,3 +73,4 @@ class Recorder:
         self.tables.sort()
         ts = self.tables.tree_sequence()
         return ts
+
