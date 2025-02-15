@@ -27,8 +27,8 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
     acceptance_count_times = 0
     acceptance_count_mutations = 0
 
-    # Initialize log-likelihood and prior
-    log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi) + tree.log_likelihood()
+    # Initialize log-likelihood and prior (use only compute_log_likelihood)
+    log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
 
     # Define the prior over the mutation rate
     def log_prior_mutation_rate(rate):
@@ -73,7 +73,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
         old_time = tree.time[parent]
         tree.detach_reattach(child, new_sib, new_time)  # Apply the SPR move
         alpha += tree.log_reattach_density(child, sib, old_time)  # log(q(old | new))
-        proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi) + tree.log_likelihood()
+        proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
         alpha += proposal_log_likelihood - log_likelihood  # log(p(new)) - log(p(old))
 
         # Metropolis-Hastings acceptance step for SPR move
@@ -90,7 +90,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
         tree.resample_times()
         proposal_log_density = tree.log_resample_times_density(tree.time)
         reverse_log_density = tree.log_resample_times_density(old_times)
-        proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi) + tree.log_likelihood()
+        proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
 
         # Compute acceptance ratio for resampling times
         alpha = (proposal_log_likelihood - log_likelihood) + (reverse_log_density - proposal_log_density)
@@ -112,13 +112,15 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
         proposal_log_prior = log_prior_mutation_rate(tree._mutation_rate)
         reverse_log_prior = log_prior_mutation_rate(old_mutation_rate)
 
+        # Compute the proposal log-likelihood
+        proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
+
         # Compute the acceptance ratio
-        alpha = (tree.compute_log_likelihood(tree._mutation_rate, pi) + tree.log_likelihood() + 
-                 proposal_log_prior) - (log_likelihood + current_log_prior)
+        alpha = (proposal_log_likelihood + proposal_log_prior) - (log_likelihood + current_log_prior)
 
         # Metropolis-Hastings acceptance step for mutation rate resampling
         if math.log(random.random()) < alpha:
-            log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi) + tree.log_likelihood()
+            log_likelihood = proposal_log_likelihood
             current_log_prior = proposal_log_prior
             acceptance_count_mutations += 1
         else:
@@ -151,4 +153,3 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
           f"Mutations = {acceptance_prob_mutations:.2f}")
 
     return [acceptance_prob_spr, acceptance_prob_times, acceptance_prob_mutations]
-

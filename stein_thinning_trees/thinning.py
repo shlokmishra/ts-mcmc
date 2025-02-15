@@ -1,155 +1,96 @@
-"""Implementation of Stein thinning for phylogenetic trees"""
-
-import logging
-from typing import Callable, List, Union
+import math
 import numpy as np
 import tskit
 
-logger = logging.getLogger(__name__)
-
-
-def _validate_trees_and_gradients(
-    trees: List[tskit.TreeSequence],
-    gradients: List[float],
-):
+def stein_thinning(recorder, subset_size):
     """
-    Validate the trees and gradients.
-
-    Parameters
-    ----------
-    trees: List[tskit.TreeSequence]
-        List of tree sequences.
-    gradients: List[float]
-        List of gradients corresponding to each tree.
-
-    Returns
-    -------
-    Tuple[List[tskit.TreeSequence], List[float]]
-        Validated trees and gradients.
+    Perform Stein thinning on the recorded trees to select a subset of given size.
+    :param recorder: Recorder object with recorded trees and data.
+    :param subset_size: Number of trees to select.
+    :return: List of indices of selected trees.
     """
-    n = len(trees)
-    assert n > 0, 'No trees provided.'
-    assert len(gradients) == n, 'Number of gradients does not match number of trees.'
+    ts = recorder.tree_sequence()  # Get the finalized tree sequence
+    n = ts.num_trees
+    if subset_size >= n:
+        # If requested subset is larger or equal to total, return all indices
+        return list(range(n))
+    # Ensure data arrays are numpy arrays
+    rates = recorder.mutation_rates  # numpy array of shape (n,)
+    grads = recorder.gradients      # numpy array of shape (n,)
+    # (We don't use log_likelihoods directly in this algorithm.)
 
-    for i, grad in enumerate(gradients):
-        assert not np.isnan(grad), f'Gradient at index {i} contains NaNs.'
-        assert not np.isinf(grad), f'Gradient at index {i} contains infinities.'
+    # Precompute Kendall-Colijn distances between all pairs of trees
+    # Using lambda=1.0 to include branch length differences. 
+    # (Can adjust lambda for different emphasis on topology vs branch lengths.)
+    tree_list = [tree for tree in ts.trees()]  # list of Tree objects for each index
+    dist_matrix = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i+1, n):
+            d = tree_list[i].kc_distance(tree_list[j], lambda_=1.0)
+            dist_matrix[i, j] = d
+            dist_matrix[j, i] = d
 
-    return trees, gradients
+    # Define kernel parameters (bandwidths) based on data dispersion
+    # For tree distances, use median distance as a scale (or 1.0 if only one tree).
+    if n > 1:
+        d_vals = dist_matrix[np.triu_indices(n, k=1)]  # upper triangle distances
+        sigma_t = np.median(d_vals) if len(d_vals) > 0 else 1.0
+        if sigma_t <= 0: 
+            sigma_t = 1.0
+    else:
+        sigma_t = 1.0
+    # For mutation rates, use standard deviation as scale
+    sigma_r = np.std(rates) if np.std(rates) > 0 else 1.0
 
+    # Precompute diagonal of Stein kernel (kappa(i,i)) for each i.
+    # Stein kernel \kappa(i,i) includes grad_i^2 term (and a constant term that is same for all, which we omit for selection).
+    diag_kappa = grads**2  # (We ignore constant terms that are equal for all points.)
 
-def _make_stein_integrand_trees(
-    trees: List[tskit.TreeSequence],
-    gradients: List[float],
-    kernel_func: Callable[[tskit.TreeSequence, tskit.TreeSequence, float, float], float],
-):
-    """
-    Create an integrand function for use in thinning algorithms.
+    selected = []
+    remaining = list(range(n))
 
-    Parameters
-    ----------
-    trees: List[tskit.TreeSequence]
-        List of tree sequences.
-    gradients: List[float]
-        List of gradients corresponding to each tree.
-    kernel_func: Callable[[tskit.TreeSequence, tskit.TreeSequence, float, float], float]
-        Kernel function that computes the kernel value between two trees and their gradients.
+    # Greedy selection
+    # Step 1: pick the first point (minimize kappa(i,i) which ~ grad^2)
+    first_index = int(np.argmin(diag_kappa))
+    selected.append(first_index)
+    remaining.remove(first_index)
 
-    Returns
-    -------
-    Callable[[Union[int, slice, List[int]], Union[int, slice, List[int]]], np.ndarray]
-        Integrand function compatible with the thinning algorithm.
-    """
-    trees, gradients = _validate_trees_and_gradients(trees, gradients)
-    n = len(trees)
+    # Initialize sum of kernel values for each candidate (cost_sum[j] = sum_{i in S} kappa(i,j))
+    cost_sum = np.zeros(n)
+    # Compute contributions from the first selected point
+    i = first_index
+    for j in remaining:
+        # Base kernel k0 = exp[-(d_tree^2/(sigma_t^2)) - ((r_i - r_j)^2/(sigma_r^2))]
+        dist_term = dist_matrix[i, j] / sigma_t if sigma_t > 0 else 0.0
+        rate_term = (rates[i] - rates[j]) / sigma_r if sigma_r > 0 else 0.0
+        base_k = math.exp(- (dist_term**2) - (rate_term**2))
+        # Stein kernel: kappa(i,j) = base_k * (grad_i * grad_j - (4/(sigma_r^4)) * (rates[i]-rates[j])^2)
+        # (Constant 2/sigma_r^2 term omitted as it adds equal offset for all pairs.)
+        kappa_ij = base_k * (grads[i] * grads[j] - (4.0 * (rates[i] - rates[j])**2) / (sigma_r**4 if sigma_r != 0 else 1.0))
+        cost_sum[j] = kappa_ij
 
-    def integrand(ind1, ind2):
-        # Convert indices to lists
-        if isinstance(ind1, slice):
-            ind1 = list(range(*ind1.indices(n)))
-        elif isinstance(ind1, int):
-            ind1 = [ind1]
-        else:
-            ind1 = list(ind1)
+    # Iteratively select the remaining points
+    while len(selected) < subset_size:
+        best_val = None
+        best_idx = None
+        # Find the remaining index with minimum (cost_sum[j] + 0.5 * kappa(j,j))
+        for j in remaining:
+            # kappa(j,j) ~ grads[j]^2  (again ignoring constant term 2/sigma_r^2)
+            val = cost_sum[j] + 0.5 * (grads[j]**2)
+            if best_val is None or val < best_val:
+                best_val = val
+                best_idx = j
+        # Select the best candidate
+        selected.append(best_idx)
+        remaining.remove(best_idx)
+        # Update cost_sum for the new selection
+        i = best_idx
+        for j in remaining:
+            dist_term = dist_matrix[i, j] / sigma_t if sigma_t > 0 else 0.0
+            rate_term = (rates[i] - rates[j]) / sigma_r if sigma_r > 0 else 0.0
+            base_k = math.exp(- (dist_term**2) - (rate_term**2))
+            kappa_ij = base_k * (grads[i] * grads[j] - (4.0 * (rates[i] - rates[j])**2) / (sigma_r**4 if sigma_r != 0 else 1.0))
+            cost_sum[j] += kappa_ij
+        # (The selected point is removed from 'remaining', so we won't use cost_sum for it again.)
 
-        if isinstance(ind2, slice):
-            ind2 = list(range(*ind2.indices(n)))
-        elif isinstance(ind2, int):
-            ind2 = [ind2]
-        else:
-            ind2 = list(ind2)
-
-        values = np.zeros((len(ind1), len(ind2)))
-        for i, idx1 in enumerate(ind1):
-            for j, idx2 in enumerate(ind2):
-                values[i, j] = kernel_func(
-                    trees[idx1], trees[idx2], gradients[idx1], gradients[idx2]
-                )
-        return values
-
-    return integrand
-
-
-def _greedy_search(
-    n_points: int,
-    integrand: Callable[[Union[int, slice, List[int]], Union[int, slice, List[int]]], np.ndarray],
-) -> np.ndarray:
-    """
-    Select points minimizing total kernel Stein distance.
-
-    Parameters
-    ----------
-    n_points: int
-        Number of points to select.
-    integrand: Callable[[IndexerT, IndexerT], np.ndarray]
-        Function returning values of the integrand in the KSD integral
-        for points identified by two indices (row and column).
-
-    Returns
-    -------
-    np.ndarray
-        Indices of selected points.
-    """
-    idx = np.empty(n_points, dtype=np.uint32)
-    k_matrix = integrand(slice(None), slice(None))
-    k0 = np.diag(k_matrix)
-    idx[0] = np.argmin(k0)
-    logger.debug('THIN: %d of %d', 1, n_points)
-
-    for i in range(1, n_points):
-        k_vector = integrand(slice(None), [idx[i - 1]]).flatten()
-        k0 += 2 * k_vector
-        idx[i] = np.argmin(k0)
-        logger.debug('THIN: %d of %d', i + 1, n_points)
-
-    return idx
-
-
-def thin_trees(
-    trees: List[tskit.TreeSequence],
-    gradients: List[float],
-    n_points: int,
-    kernel_func: Callable[[tskit.TreeSequence, tskit.TreeSequence, float, float], float],
-) -> np.ndarray:
-    """
-    Optimally select m points from n > m sampled trees.
-
-    Parameters
-    ----------
-    trees: List[tskit.TreeSequence]
-        List of tree sequences.
-    gradients: List[float]
-        List of gradients corresponding to each tree.
-    n_points: int
-        Number of points to select.
-    kernel_func: Callable[[tskit.TreeSequence, tskit.TreeSequence, float, float], float]
-        Kernel function that computes the kernel value between two trees and their gradients.
-
-    Returns
-    -------
-    np.ndarray
-        Array containing the indices of the selected trees.
-    """
-    integrand = _make_stein_integrand_trees(trees, gradients, kernel_func)
-    selected_indices = _greedy_search(n_points, integrand)
-    return selected_indices
+    return selected

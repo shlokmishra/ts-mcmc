@@ -1,112 +1,77 @@
-"""Kernel matrix functions for phylogenetic trees"""
-
-from typing import Callable, List, Union
-
 import numpy as np
 import tskit
+from . import kernel  # kernel module provides kc_distance_wrapper and kernel functions
 
-def kmat(
-    integrand: Callable[[int, int], float],
-    n: int,
-) -> np.ndarray:
-    """Compute a Stein kernel matrix for phylogenetic trees.
-
-    The matrix is obtained by evaluating the provided Stein kernel
-    on all pairs of trees in the sample.
-
-    Parameters
-    ----------
-    integrand: Callable[[int, int], float]
-        Function returning the value of the kernel between two trees,
-        given their indices.
-    n: int
-        Size of the matrix to return (number of trees).
-
-    Returns
-    -------
-    np.ndarray
-        n x n array containing the Stein kernel matrix.
-    """
-    k0 = np.zeros((n, n))
-    ind1, ind2 = np.triu_indices(n)
-    # Compute the kernel values for the upper triangle indices
-    for i, j in zip(ind1, ind2):
-        k_value = integrand(i, j)
-        k0[i, j] = k_value
-        k0[j, i] = k_value  # Since the kernel matrix is symmetric
-    return k0
-
-def ksd(
-    integrand: Callable[[int, Union[int, slice]], Union[float, np.ndarray]],
-    n: int,
-) -> np.ndarray:
-    """Compute a cumulative sequence of KSD values for phylogenetic trees.
-
-    KSD values are calculated from sums of elements in each i x i square in the top-left
-    corner of the kernel Stein matrix.
-
-    Parameters
-    ----------
-    integrand: Callable[[int, Union[int, slice]], Union[float, np.ndarray]]
-        Function returning the kernel values between a tree at index i
-        and trees at indices specified by the second argument.
-    n: int
-        Number of terms to calculate.
-
-    Returns
-    -------
-    np.ndarray
-        Array shaped (n,) containing the sequence of KSD values.
-    """
-    assert n > 0
-    cum_sum = np.zeros(n)
-    cum_sum[0] = integrand(0, 0)
-    for i in range(1, n):
-        # Compute kernel values between tree i and all previous trees (0 to i)
-        vals = integrand(i, slice(0, i + 1))
-        cum_sum[i] = cum_sum[i - 1] + 2 * np.sum(vals) - vals[-1]
-    return np.sqrt(cum_sum) / np.arange(1, n + 1)
-
-def create_integrand(
-    trees: List[tskit.TreeSequence],
-    gradients: List[float],
-    kernel_func: Callable[[tskit.TreeSequence, tskit.TreeSequence, float, float], float],
-) -> Callable[[int, Union[int, slice]], Union[float, np.ndarray]]:
-    """Create an integrand function for use in kmat and ksd functions.
-
-    Parameters
-    ----------
-    trees: List[tskit.TreeSequence]
-        List of tree sequences.
-    gradients: List[float]
-        Gradients of the log-likelihood at each tree.
-    kernel_func: Callable[[tskit.TreeSequence, tskit.TreeSequence, float, float], float]
-        Function that computes the kernel value between two trees and their gradients.
-
-    Returns
-    -------
-    Callable[[int, Union[int, slice]], Union[float, np.ndarray]]
-        Integrand function compatible with kmat and ksd functions.
-    """
-    def integrand(i: int, j: Union[int, slice, List[int]]) -> Union[float, np.ndarray]:
-        if isinstance(j, int):
-            # Compute the kernel value between trees i and j
-            return kernel_func(trees[i], trees[j], gradients[i], gradients[j])
-        elif isinstance(j, slice):
-            # Compute kernel values between tree i and trees in the slice
-            indices = list(range(*j.indices(len(trees))))
-            values = []
-            for idx in indices:
-                value = kernel_func(trees[i], trees[idx], gradients[i], gradients[idx])
-                values.append(value)
-            return np.array(values)
-        elif isinstance(j, list):
-            # If j is a list of indices
-            values = []
-            for idx in j:
-                value = kernel_func(trees[i], trees[idx], gradients[i], gradients[idx])
-                values.append(value)
-            return np.array(values)
+class SteinThinner:
+    def __init__(self, kernel_func=None, kernel_param=None):
+        """
+        Stein Thinner for tree-space samples.
+        :param kernel_func: A kernel function accepting two tskit.Tree objects.
+        :param kernel_param: Additional parameters for the kernel (e.g., bandwidth).
+        """
+        # Use a default Gaussian kernel on Kendall-Colijn distance if none provided
+        if kernel_func is None:
+            self.kernel_func = lambda t1, t2: np.exp(- kernel.kc_distance_wrapper(t1, t2)**2 / 2.0)
         else:
-            raise TypeError("Index j must be an int, slice, or list of ints.")
-    return integrand
+            self.kernel_func = kernel_func
+        self.kernel_param = kernel_param
+
+    def thin(self, trees, m):
+        """
+        Select m representative trees from the given collection (trees can be a TreeSequence or list of Tree).
+        Returns indices of selected trees in the original collection.
+        """
+        # Ensure we have a list of tskit.Tree objects
+        if isinstance(trees, tskit.TreeSequence):
+            # Extract all trees from the TreeSequence
+            tree_list = [tree for tree in trees.trees(sample_lists=True)]
+        elif isinstance(trees, list) and all(isinstance(t, tskit.Tree) for t in trees):
+            tree_list = trees
+        else:
+            raise TypeError("Input must be a tskit.TreeSequence or list of tskit.Tree objects")
+        n = len(tree_list)
+        if m >= n:
+            return list(range(n))  # no thinning needed (return all indices)
+
+        # Pre-compute kernel matrix for efficiency
+        K = np.zeros((n, n))
+        for i in range(n):
+            K[i, i] = self.kernel_func(tree_list[i], tree_list[i])
+            for j in range(i+1, n):
+                K_val = self.kernel_func(tree_list[i], tree_list[j])
+                K[i, j] = K_val
+                K[j, i] = K_val
+
+        # Greedily select m samples to minimize kernel Stein discrepancy
+        selected_idx = []
+        remaining_idx = list(range(n))
+        # (Optional) initialization: pick first point (e.g., at random or maximize diversity)
+        # Here, pick the first tree as the initial representative
+        selected_idx.append(remaining_idx.pop(0))
+
+        # Iteratively select remaining points
+        for _ in range(1, m):
+            best_idx = None
+            best_obj_val = None
+            # Evaluate Stein discrepancy objective for each candidate if added
+            for j in remaining_idx:
+                candidate_idx = selected_idx + [j]
+                # Compute objective (KSD) for candidate set
+                obj_val = self._stein_discrepancy(K, candidate_idx)
+                if best_obj_val is None or obj_val < best_obj_val:
+                    best_obj_val = obj_val
+                    best_idx = j
+            # Select the index that gives minimum discrepancy
+            selected_idx.append(best_idx)
+            remaining_idx.remove(best_idx)
+        return selected_idx
+
+    def _stein_discrepancy(self, K, idx_set):
+        """
+        Compute (approximate) kernel Stein discrepancy for a set of indices.
+        Here we use a simplified measure: sum of pairwise kernel values within the set.
+        Lower is better for diversity (assuming kernel is similarity measure).
+        """
+        # Sum of K over all pairs in idx_set (including self-pairs)
+        subK = K[np.ix_(idx_set, idx_set)]
+        return np.sum(subK)

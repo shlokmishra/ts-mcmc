@@ -400,24 +400,6 @@ class Tree:
         
         self._mutation_rate = new_rate
         return old_mutation_rate
-    
-
-    
-
-    def log_resample_mutation_rate_density(self, old_mutation_rate):
-        """
-        Computes the log proposal density ratio for mutation rate resampling.
-        Since the proposal is symmetric, this ratio is zero.
-        
-        Parameters:
-        - old_mutation_rate: float
-            The previous mutation rate before resampling.
-        
-        Returns:
-        - log_density_ratio: float
-            The log of the proposal density ratio. Zero for symmetric proposals.
-        """
-        return 0.0  # Symmetric proposal, so log(q(theta | theta') / q(theta' | theta)) = 0
 
 
     @mutation_rate.setter
