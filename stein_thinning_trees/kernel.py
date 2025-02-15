@@ -1,19 +1,25 @@
 import tskit
 import numpy as np
 
-def kc_distance_wrapper(tree1, tree2, lambda_=0.0):
+def kc_distance_wrapper(tree1, tree2, **kwargs):
     """
-    Wrapper for tskit.Tree.kc_distance to compute Kendall-Colijn distance.
-    Both inputs should be tskit.Tree objects (from the same TreeSequence or with matching samples).
+    Compute the Kendall-Colijn distance between two tree structures (tskit.Tree or TreeSequence).
+    Ensures that if a TreeSequence is provided, it is converted to a Tree with sample lists enabled.
+    Additional kwargs (like lambda_) are passed to tskit.Tree.kc_distance().
     """
-    if not isinstance(tree1, tskit.Tree) or not isinstance(tree2, tskit.Tree):
-        raise TypeError("kc_distance_wrapper expects tskit.Tree instances")
-    # Compute Kendall-Colijn distance using tskit (lambda_ controls branch length weight)
-    return tree1.kc_distance(tree2, lambda_)
+    # If tree1 is a TreeSequence, extract the first tree with sample lists enabled
+    if isinstance(tree1, tskit.TreeSequence):
+        # Ensure we get a Tree with sample_lists=True to avoid NoSampleListsError
+        tree1 = tree1.first(sample_lists=True)
+    # If tree2 is a TreeSequence, do the same
+    if isinstance(tree2, tskit.TreeSequence):
+        tree2 = tree2.first(sample_lists=True)
+    # Now tree1 and tree2 are tskit.Tree objects with sample lists (if originally TreeSequences)
+    return tree1.kc_distance(tree2, **kwargs)
 
 def rf_distance_wrapper(tree1, tree2):
     """
-    Optional: Wrapper for Robinson-Foulds distance (topological distance) using tskit.
+    Another metric for distance: Wrapper for Robinson-Foulds distance (topological distance) using tskit.
     """
     if not isinstance(tree1, tskit.Tree) or not isinstance(tree2, tskit.Tree):
         raise TypeError("rf_distance_wrapper expects tskit.Tree instances")
