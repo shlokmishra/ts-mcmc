@@ -35,7 +35,13 @@ class Tree:
             active_lineages.append(next_parent)
             next_parent += 1
             n -= 1
+            
+        self.root = next_parent - 1
+        
 
+    def is_internal(self, node):
+        """Checks if a node is an internal node (not a leaf)."""
+        return self.left_child[node] != -1
 
     def sample_reattach_time(self, child, new_sib):
         sib = self.sibling(child)
@@ -74,29 +80,65 @@ class Tree:
         return ret
 
     def resample_times(self):
-        ret = 0
-        lb = 0
+        """
+        Resample coalescent times using the correct Kingman coalescent process.
+        Returns the log density of the proposal.
+        """
+        # Get unique times and their indices, sorted
         sorted_times, ind = numpy.unique(self.time, return_index=True)
+        
+        lb = 0.0  # Lower bound for current interval
+        
+        # Resample each coalescent event time
         for i in range(1, len(sorted_times)):
-            rate = scipy.special.binom(self.sample_size - i + 1, 2)
-            index = ind[i]
+            # Number of lineages at this point
+            n_lineages = self.sample_size - i + 1
+            # Coalescent rate
+            rate = scipy.special.binom(n_lineages, 2)
+            
+            # Sample new time from exponential distribution
             new_time = lb + random.expovariate(lambd=rate)
+            
+            # Update the time for this coalescent event
+            index = ind[i]
             self.time[index] = new_time
-            ret += numpy.log(rate) - rate * (new_time - lb)  # Include log(rate)
+            
+            # Update lower bound for next interval
             lb = new_time
-        return ret
-
+        
+        # Calculate and return the log density of the new times
+        return self.log_resample_times_density(self.time)
 
     def log_resample_times_density(self, t):
-        ret = 0
-        lb = 0
+        """
+        Calculate the log density of the times resampling proposal for given times t.
+        This should match the density used in resample_times().
+        """
+        # Get unique times and their indices, sorted
         sorted_times, ind = numpy.unique(t, return_index=True)
+        
+        log_density = 0.0
+        lb = 0.0  # Lower bound for current interval
+        
+        # Calculate density for each coalescent event time
         for i in range(1, len(sorted_times)):
-            rate = scipy.special.binom(self.sample_size - i + 1, 2)
+            # Number of lineages at this point
+            n_lineages = self.sample_size - i + 1
+            # Coalescent rate
+            rate = scipy.special.binom(n_lineages, 2)
+            
+            # Get the time for this coalescent event
             index = ind[i]
-            ret += numpy.log(rate) - rate * (t[index] - lb)  # Include log(rate)
-            lb = t[index]
-        return ret
+            event_time = t[index]
+            
+            # Add log density: log(rate * exp(-rate * (event_time - lb)))
+            # = log(rate) - rate * (event_time - lb)
+            log_density += numpy.log(rate) - rate * (event_time - lb)
+            
+            # Update lower bound for next interval
+            lb = event_time
+            
+        return log_density
 
 
     def sample_leaf(self):
@@ -188,89 +230,49 @@ class Tree:
         numpy.fill_diagonal(dP_dt, dP_same)
         return dP_dt
 
-    def log_transition_probability(self, t, mutation_rate, s1, s2):
-        n_states = self.n_states
-        alpha = mutation_rate
-        exp_factor = numpy.exp(-n_states * alpha * t)
-
-        if s1 == s2:
-            prob = 1.0 / n_states + (1.0 - 1.0 / n_states) * exp_factor
-        else:
-            prob = 1.0 / n_states - (1.0 / n_states) * exp_factor
-
-        # Ensure probability is positive to avoid log of zero
-        prob = max(prob, 1e-300)
-
-        return numpy.log(prob)
-
-
-    def log_sum_exp(self, log_values):
-        """
-        Compute log-sum-exp in a numerically stable way.
-        """
-        max_log = numpy.max(log_values)
-        return max_log + numpy.log(numpy.sum(numpy.exp(log_values - max_log)))
-
     def compute_site_log_likelihood(self, site, mutation_rate, pi):
         """
         Compute the log-likelihood for a single site (position) in the sequences.
+        Uses matrix-based transition probabilities for efficiency.
         """
-        L = numpy.full((2 * self.sample_size - 1, self.n_states), -numpy.inf)  # Log-likelihood matrix initialized to -inf
+        n_states = self.n_states
+        L = numpy.full((2 * self.sample_size - 1, n_states), -numpy.inf)
 
         # Initialize the log-likelihoods at the leaves
         for i in range(self.sample_size):
             observed_state = self.sequences[i][site]
-            for s in range(self.n_states):
-                L[i][s] = 0.0 if s == observed_state else -numpy.inf  # Set 0 for the observed state (log(1)), -inf otherwise
-
-        # Debug statement
-        # print(f"Initialized log-likelihoods at leaves for site {site}: {L[:self.sample_size]}")
+            L[i, observed_state] = 0.0  # log(1) for observed state, -inf otherwise
 
         # Propagate log-likelihoods up the tree
-        for p in range(self.sample_size, 2 * self.sample_size - 1):  # Internal nodes
+        for p in range(self.sample_size, 2 * self.sample_size - 1):
             left = self.left_child[p]
             right = self.right_child[p]
 
-            # Initialize L[p][s] to 0.0 (log(1)) for all states s
-            for s in range(self.n_states):
-                L[p][s] = 0.0
+            # Initialize L[p] to 0.0 (log(1)) for all states
+            L[p, :] = 0.0
 
-            # Process left child
+            # Process left child using matrix operations
             if left != -1:
                 t_left = self.time[p] - self.time[left]
-                for s in range(self.n_states):
-                    log_probs_left = [
-                        self.log_transition_probability(t_left, mutation_rate, s, sl) + L[left][sl]
-                        for sl in range(self.n_states)
-                    ]
-                    L[p][s] += self.log_sum_exp(log_probs_left)
-            
-                # Debug statement
-                # print(f"Log-likelihood at node {p}, after processing left child {left}: {L[p]}")
+                P_left = self.transition_probability(t_left, mutation_rate)
+                # Ensure no zero probabilities for log
+                log_P_left = numpy.log(numpy.maximum(P_left, 1e-300))
+                # For each parent state s, compute logsumexp over child states
+                # log_P_left[s, :] + L[left, :] gives log(P(s->child_state) * L_child)
+                for s in range(n_states):
+                    L[p, s] += scipy.special.logsumexp(log_P_left[s, :] + L[left, :])
 
-            # Process right child
+            # Process right child using matrix operations
             if right != -1:
                 t_right = self.time[p] - self.time[right]
-                for s in range(self.n_states):
-                    log_probs_right = [
-                        self.log_transition_probability(t_right, mutation_rate, s, sr) + L[right][sr]
-                        for sr in range(self.n_states)
-                    ]
-                    L[p][s] += self.log_sum_exp(log_probs_right)
-
-                # Debug statement
-                # print(f"Log-likelihood at node {p}, after processing right child {right}: {L[p]}")
+                P_right = self.transition_probability(t_right, mutation_rate)
+                log_P_right = numpy.log(numpy.maximum(P_right, 1e-300))
+                for s in range(n_states):
+                    L[p, s] += scipy.special.logsumexp(log_P_right[s, :] + L[right, :])
 
         # Likelihood at the root
-        root = 2 * self.sample_size - 2  # Root node index
-        root_log_probs = [
-            numpy.log(pi[s]) + L[root][s] for s in range(self.n_states)
-        ]  # Sum over all root states with log(pi[s])
-
-        root_log_likelihood = self.log_sum_exp(root_log_probs)
-
-        # Debug statement
-        # print(f"Root log-likelihood: {root_log_likelihood}")
+        log_pi = numpy.log(pi)
+        root_log_likelihood = scipy.special.logsumexp(log_pi + L[self.root, :])
 
         return root_log_likelihood
 
@@ -381,25 +383,36 @@ class Tree:
 
     def resample_mutation_rate(self, step_size=0.1):
         """
-        Resample the mutation rate using a reflective Gaussian proposal.
+        Resample the mutation rate using a log-normal proposal (better for positive parameters).
         
         Parameters:
         - step_size: float
-            The standard deviation of the Gaussian proposal.
+            The standard deviation of the log-normal proposal.
         
         Returns:
         - old_mutation_rate: float
             The previous mutation rate before resampling.
+        - log_proposal_density: float
+            Log of the proposal density q(new|old)
+        - log_reverse_proposal_density: float
+            Log of the reverse proposal density q(old|new)
         """
         old_mutation_rate = self._mutation_rate
-        new_rate = old_mutation_rate + step_size * numpy.random.randn()
         
-        # Reflective Gaussian: mirror the negative rates back into positive domain
-        if new_rate < 0:
-            new_rate = -new_rate
+        # Log-normal proposal: log(new_rate) ~ N(log(old_rate), step_size^2)
+        log_old_rate = numpy.log(old_mutation_rate)
+        log_new_rate = log_old_rate + step_size * numpy.random.randn()
+        new_rate = numpy.exp(log_new_rate)
+        
+        # Calculate proposal densities
+        # q(new|old) = 1/(new_rate * step_size * sqrt(2*pi)) * exp(-0.5 * ((log(new_rate) - log(old_rate))/step_size)^2)
+        log_proposal_density = -numpy.log(new_rate * step_size * numpy.sqrt(2 * numpy.pi)) - 0.5 * ((log_new_rate - log_old_rate) / step_size)**2
+        
+        # q(old|new) = 1/(old_rate * step_size * sqrt(2*pi)) * exp(-0.5 * ((log(old_rate) - log(new_rate))/step_size)^2)
+        log_reverse_proposal_density = -numpy.log(old_mutation_rate * step_size * numpy.sqrt(2 * numpy.pi)) - 0.5 * ((log_old_rate - log_new_rate) / step_size)**2
         
         self._mutation_rate = new_rate
-        return old_mutation_rate
+        return old_mutation_rate, log_proposal_density, log_reverse_proposal_density
 
 
     @mutation_rate.setter
@@ -423,23 +436,30 @@ def mutate_sequence(sequence, time, mutation_rate, num_states):
     return mutated_sequence
 
 def simulate_sequences(tree, root_sequence, mutation_rate, num_states):
-    sequences = numpy.full((2 * tree.sample_size - 1, len(root_sequence)), -1)
-    sequences[-1] = root_sequence
+    # Initialize the sequences array
+    num_nodes = 2 * tree.sample_size - 1
+    sequences = numpy.full((num_nodes, len(root_sequence)), -1, dtype=int)
 
-    for node in range(2 * tree.sample_size - 2, -1, -1):
-        if tree.left_child[node] != -1 and tree.right_child[node] != -1:
+    # Use the new attribute to set the root sequence
+    sequences[tree.root] = root_sequence
+
+    # Iterate downwards from the root
+    for node in range(num_nodes - 1, -1, -1):
+        # Check if the node's sequence has been set and it's an internal node
+        if tree.is_internal(node) and numpy.all(sequences[node] != -1):
             parent_seq = sequences[node]
             left_child = tree.left_child[node]
             right_child = tree.right_child[node]
-            t_left = max(0, tree.time[left_child] - tree.time[node])
-            t_right = max(0, tree.time[right_child] - tree.time[node])
-            left_seq = mutate_sequence(parent_seq, t_left, mutation_rate, num_states)
-            right_seq = mutate_sequence(parent_seq, t_right, mutation_rate, num_states)
-            sequences[left_child] = left_seq
-            sequences[right_child] = right_seq
+            
+            # Correctly calculate branch length
+            t_left = tree.time[node] - tree.time[left_child]
+            t_right = tree.time[node] - tree.time[right_child]
+            
+            # Mutate and assign sequences to children
+            sequences[left_child] = mutate_sequence(parent_seq, t_left, mutation_rate, num_states)
+            sequences[right_child] = mutate_sequence(parent_seq, t_right, mutation_rate, num_states)
 
     return sequences[:tree.sample_size]
-
 
 def coalescence_tree_with_sequences(sample_size, num_states, seq_length, mutation_rate, root_sequence=None):
     if root_sequence is None:

@@ -86,14 +86,15 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
         # -------------------
         # 2. Resample Node Times
         # -------------------
+        # Note: resample_times() proposes new times from the Kingman coalescent prior.
+        # Since the proposal distribution equals the prior, the MH acceptance ratio
+        # simplifies to just the likelihood ratio (prior terms cancel with proposal terms).
         old_times = tree.time.copy()
-        tree.resample_times()
-        proposal_log_density = tree.log_resample_times_density(tree.time)
-        reverse_log_density = tree.log_resample_times_density(old_times)
+        tree.resample_times()  # Propose new times from prior
         proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
 
-        # Compute acceptance ratio for resampling times
-        alpha = (proposal_log_likelihood - log_likelihood) + (reverse_log_density - proposal_log_density)
+        # Compute acceptance ratio: just likelihood ratio since proposal = prior
+        alpha = proposal_log_likelihood - log_likelihood
 
         # Metropolis-Hastings acceptance step for resampling times
         if math.log(random.random()) < alpha:
@@ -103,10 +104,9 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
             tree.time = old_times.copy()
 
         # -------------------
-        # 3. Mutation Rate Resampling (Reflective Gaussian Proposal)
+        # 3. Mutation Rate Resampling (Log-Normal Proposal)
         # -------------------
-        old_mutation_rate = tree._mutation_rate
-        tree.resample_mutation_rate(step_size=step_size)  # Propose new mutation rate with reflection
+        old_mutation_rate, log_proposal_density, log_reverse_proposal_density = tree.resample_mutation_rate(step_size=step_size)
 
         # Compute the log prior for the new and old mutation rates
         proposal_log_prior = log_prior_mutation_rate(tree._mutation_rate)
@@ -115,8 +115,8 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1):
         # Compute the proposal log-likelihood
         proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
 
-        # Compute the acceptance ratio
-        alpha = (proposal_log_likelihood + proposal_log_prior) - (log_likelihood + current_log_prior)
+        # Compute the acceptance ratio with correct proposal densities
+        alpha = (proposal_log_likelihood + proposal_log_prior + log_reverse_proposal_density) - (log_likelihood + current_log_prior + log_proposal_density)
 
         # Metropolis-Hastings acceptance step for mutation rate resampling
         if math.log(random.random()) < alpha:

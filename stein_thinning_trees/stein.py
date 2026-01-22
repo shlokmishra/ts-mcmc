@@ -1,77 +1,221 @@
+"""
+Stein discrepancy computation for tree-valued samples.
+
+This module provides functions for computing kernel Stein discrepancy (KSD)
+and related quantities for tree-valued MCMC samples.
+"""
+
 import numpy as np
 import tskit
-from . import kernel  # kernel module provides kc_distance_wrapper and kernel functions
+from typing import Union, List, Callable, Optional
+from .kernel import SteinKernelTree, tree_kernel_matrix, combined_kernel_matrix
 
-class SteinThinner:
-    def __init__(self, kernel_func=None, kernel_param=None):
-        """
-        Stein Thinner for tree-space samples.
-        :param kernel_func: A kernel function accepting two tskit.Tree objects.
-        :param kernel_param: Additional parameters for the kernel (e.g., bandwidth).
-        """
-        # Use a default Gaussian kernel on Kendall-Colijn distance if none provided
-        if kernel_func is None:
-            self.kernel_func = lambda t1, t2: np.exp(- kernel.kc_distance_wrapper(t1, t2)**2 / 2.0)
-        else:
-            self.kernel_func = kernel_func
-        self.kernel_param = kernel_param
 
-    def thin(self, trees, m):
+def ksd_from_matrix(K: np.ndarray, indices: np.ndarray = None) -> float:
+    """
+    Compute kernel Stein discrepancy from a kernel matrix.
+    
+    KSD^2 = (1/n^2) * sum_{i,j} K[i,j]
+    
+    Parameters
+    ----------
+    K : np.ndarray
+        n x n Stein kernel matrix
+    indices : np.ndarray, optional
+        Indices of points to include. If None, uses all points.
+        
+    Returns
+    -------
+    float
+        KSD value (square root of mean kernel value)
+    """
+    if indices is not None:
+        K_sub = K[np.ix_(indices, indices)]
+    else:
+        K_sub = K
+        
+    n = K_sub.shape[0]
+    ksd_squared = np.sum(K_sub) / (n * n)
+    
+    return np.sqrt(max(0, ksd_squared))
+
+
+def cumulative_ksd(K: np.ndarray) -> np.ndarray:
+    """
+    Compute cumulative KSD values for increasing subsets.
+    
+    Returns KSD for first 1, 2, ..., n points.
+    
+    Parameters
+    ----------
+    K : np.ndarray
+        n x n Stein kernel matrix
+        
+    Returns
+    -------
+    np.ndarray
+        Array of length n with cumulative KSD values
+    """
+    n = K.shape[0]
+    ksd_values = np.zeros(n)
+    
+    cum_sum = 0.0
+    for i in range(n):
+        # Add contribution from new point
+        # K[i,i] + 2 * sum_{j<i} K[i,j]
+        cum_sum += K[i, i] + 2 * np.sum(K[i, :i])
+        ksd_values[i] = np.sqrt(max(0, cum_sum)) / (i + 1)
+        
+    return ksd_values
+
+
+class TreeSteinDiscrepancy:
+    """
+    Compute Stein discrepancy for tree-valued MCMC samples.
+    
+    This class provides methods for computing KSD and related
+    quantities using the adapted Stein kernel for trees.
+    """
+    
+    def __init__(
+        self,
+        trees: Union[tskit.TreeSequence, List[tskit.Tree]],
+        gradients: np.ndarray,
+        mutation_rates: np.ndarray = None,
+        log_likelihoods: np.ndarray = None,
+        sigma: float = None,
+        lambda_: float = 0.5
+    ):
         """
-        Select m representative trees from the given collection (trees can be a TreeSequence or list of Tree).
-        Returns indices of selected trees in the original collection.
+        Initialize with MCMC samples.
+        
+        Parameters
+        ----------
+        trees : TreeSequence or List[Tree]
+            Collection of trees from MCMC
+        gradients : np.ndarray
+            Gradients of log-likelihood w.r.t. parameters
+        mutation_rates : np.ndarray, optional
+            Mutation rates at each MCMC step
+        log_likelihoods : np.ndarray, optional
+            Log-likelihoods at each MCMC step
+        sigma : float, optional
+            Kernel bandwidth
+        lambda_ : float
+            Lambda for KC distance
         """
-        # Ensure we have a list of tskit.Tree objects
+        # Store trees
+        # IMPORTANT: ts.trees() reuses the same Tree object - must copy!
         if isinstance(trees, tskit.TreeSequence):
-            # Extract all trees from the TreeSequence
-            tree_list = [tree for tree in trees.trees(sample_lists=True)]
-        elif isinstance(trees, list) and all(isinstance(t, tskit.Tree) for t in trees):
-            tree_list = trees
+            self.trees = [t.copy() for t in trees.trees(sample_lists=True)]
         else:
-            raise TypeError("Input must be a tskit.TreeSequence or list of tskit.Tree objects")
-        n = len(tree_list)
-        if m >= n:
-            return list(range(n))  # no thinning needed (return all indices)
-
-        # Pre-compute kernel matrix for efficiency
-        K = np.zeros((n, n))
-        for i in range(n):
-            K[i, i] = self.kernel_func(tree_list[i], tree_list[i])
-            for j in range(i+1, n):
-                K_val = self.kernel_func(tree_list[i], tree_list[j])
-                K[i, j] = K_val
-                K[j, i] = K_val
-
-        # Greedily select m samples to minimize kernel Stein discrepancy
-        selected_idx = []
-        remaining_idx = list(range(n))
-        # (Optional) initialization: pick first point (e.g., at random or maximize diversity)
-        # Here, pick the first tree as the initial representative
-        selected_idx.append(remaining_idx.pop(0))
-
-        # Iteratively select remaining points
-        for _ in range(1, m):
-            best_idx = None
-            best_obj_val = None
-            # Evaluate Stein discrepancy objective for each candidate if added
-            for j in remaining_idx:
-                candidate_idx = selected_idx + [j]
-                # Compute objective (KSD) for candidate set
-                obj_val = self._stein_discrepancy(K, candidate_idx)
-                if best_obj_val is None or obj_val < best_obj_val:
-                    best_obj_val = obj_val
-                    best_idx = j
-            # Select the index that gives minimum discrepancy
-            selected_idx.append(best_idx)
-            remaining_idx.remove(best_idx)
-        return selected_idx
-
-    def _stein_discrepancy(self, K, idx_set):
+            self.trees = trees
+            
+        self.n = len(self.trees)
+        self.gradients = np.atleast_2d(gradients)
+        if self.gradients.shape[0] == 1:
+            self.gradients = self.gradients.T
+        
+        self.mutation_rates = mutation_rates
+        self.log_likelihoods = log_likelihoods
+        
+        # Initialize Stein kernel
+        self.stein_kernel = SteinKernelTree(sigma=sigma, lambda_=lambda_)
+        
+        # Lazily computed kernel matrix
+        self._K = None
+        
+    @property
+    def kernel_matrix(self) -> np.ndarray:
+        """Get or compute the Stein kernel matrix."""
+        if self._K is None:
+            self._K = self.stein_kernel.compute_matrix(
+                self.trees, 
+                self.gradients,
+                self.mutation_rates
+            )
+        return self._K
+    
+    def ksd(self, indices: np.ndarray = None) -> float:
         """
-        Compute (approximate) kernel Stein discrepancy for a set of indices.
-        Here we use a simplified measure: sum of pairwise kernel values within the set.
-        Lower is better for diversity (assuming kernel is similarity measure).
+        Compute KSD for given indices.
+        
+        Parameters
+        ----------
+        indices : np.ndarray, optional
+            Indices to include. If None, uses all points.
+            
+        Returns
+        -------
+        float
+            KSD value
         """
-        # Sum of K over all pairs in idx_set (including self-pairs)
-        subK = K[np.ix_(idx_set, idx_set)]
-        return np.sum(subK)
+        return ksd_from_matrix(self.kernel_matrix, indices)
+    
+    def cumulative_ksd(self) -> np.ndarray:
+        """
+        Compute cumulative KSD for increasing chain lengths.
+        
+        Returns
+        -------
+        np.ndarray
+            Array of length n with cumulative KSD values
+        """
+        return cumulative_ksd(self.kernel_matrix)
+    
+    def ksd_for_subset(self, indices: np.ndarray) -> float:
+        """
+        Compute KSD for a specific subset of points.
+        
+        Parameters
+        ----------
+        indices : np.ndarray
+            Indices of points in the subset
+            
+        Returns
+        -------
+        float
+            KSD for the subset
+        """
+        K_sub = self.kernel_matrix[np.ix_(indices, indices)]
+        n = len(indices)
+        return np.sqrt(max(0, np.sum(K_sub))) / n
+
+
+def compute_stein_kernel_matrix(
+    recorder,
+    sigma: float = None,
+    lambda_: float = 0.5,
+    use_gradients: bool = True
+) -> np.ndarray:
+    """
+    Convenience function to compute Stein kernel matrix from a Recorder.
+    
+    Parameters
+    ----------
+    recorder : Recorder
+        Recorder object containing MCMC samples
+    sigma : float, optional
+        Kernel bandwidth
+    lambda_ : float
+        Lambda for KC distance
+    use_gradients : bool
+        Whether to incorporate gradient information
+        
+    Returns
+    -------
+    np.ndarray
+        Stein kernel matrix
+    """
+    ts = recorder.tree_sequence()
+    # IMPORTANT: ts.trees() reuses the same Tree object - must copy!
+    trees = [t.copy() for t in ts.trees(sample_lists=True)]
+    
+    if use_gradients and recorder.gradients:
+        gradients = np.array(recorder.gradients)
+    else:
+        # Use zeros if no gradients (falls back to pure kernel)
+        gradients = np.zeros((len(trees), 1))
+    
+    stein_kernel = SteinKernelTree(sigma=sigma, lambda_=lambda_)
+    return stein_kernel.compute_matrix(trees, gradients)
