@@ -57,6 +57,7 @@ from .stein import (
 from .thinning import (
     greedy_thin,
     thin_trees,
+    thin_trees_scalable,
     thin_tree_sequence,
     naive_thin,
     compare_thinning_methods,
@@ -90,6 +91,7 @@ __all__ = [
     # Thinning
     'greedy_thin',
     'thin_trees',
+    'thin_trees_scalable',
     'thin_tree_sequence',
     'naive_thin',
     'compare_thinning_methods',
