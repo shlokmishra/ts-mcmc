@@ -1,0 +1,4 @@
+topic,current_position,evidence
+n=128 scaling,Limitation / future work,5000-step n=128 long-chain diagnostics reach only modest log-likelihood ESS and still show larger burn-in fraction than n=64.
+Gzipped storage,Not a headline claim,n=64 campaign .trees.gz / Newick.gz = 1.003.
+Random per-sample access,Secondary / limitation note,n=64 random ts.at / Newick = 1.096.

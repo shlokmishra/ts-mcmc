@@ -207,9 +207,12 @@ def compute_stein_kernel_matrix(
     np.ndarray
         Stein kernel matrix
     """
-    ts = recorder.tree_sequence()
-    # IMPORTANT: ts.trees() reuses the same Tree object - must copy!
-    trees = [t.copy() for t in ts.trees(sample_lists=True)]
+    if hasattr(recorder, "recorded_trees"):
+        trees = recorder.recorded_trees(sample_lists=True)
+    else:
+        ts = recorder.tree_sequence()
+        # IMPORTANT: ts.trees() reuses the same Tree object - must copy!
+        trees = [t.copy() for t in ts.trees(sample_lists=True)]
     
     if use_gradients and recorder.gradients:
         gradients = np.array(recorder.gradients)

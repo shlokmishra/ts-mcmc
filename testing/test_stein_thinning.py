@@ -190,7 +190,7 @@ class TestSteinKernel:
         """Stein kernel matrix should have correct shape."""
         K = stt.compute_stein_kernel_matrix(simple_recorder)
         
-        n = simple_recorder.tree_sequence().num_trees
+        n = len(simple_recorder.mutation_rates)
         assert K.shape == (n, n)
         
     def test_stein_kernel_matrix_symmetric(self, simple_recorder):
@@ -391,29 +391,29 @@ class TestTreeSteinDiscrepancy:
     
     def test_tsd_initialization(self, simple_recorder):
         """TreeSteinDiscrepancy should initialize correctly."""
-        ts = simple_recorder.tree_sequence()
+        trees = simple_recorder.recorded_trees()
         gradients = np.array(simple_recorder.gradients)
         
-        tsd = stt.TreeSteinDiscrepancy(ts, gradients)
+        tsd = stt.TreeSteinDiscrepancy(trees, gradients)
         
-        assert tsd.n == ts.num_trees
+        assert tsd.n == len(simple_recorder.mutation_rates)
         
     def test_tsd_kernel_matrix(self, simple_recorder):
         """TreeSteinDiscrepancy should compute kernel matrix."""
-        ts = simple_recorder.tree_sequence()
+        trees = simple_recorder.recorded_trees()
         gradients = np.array(simple_recorder.gradients)
         
-        tsd = stt.TreeSteinDiscrepancy(ts, gradients)
+        tsd = stt.TreeSteinDiscrepancy(trees, gradients)
         K = tsd.kernel_matrix
         
         assert K.shape == (tsd.n, tsd.n)
         
     def test_tsd_ksd(self, simple_recorder):
         """TreeSteinDiscrepancy should compute KSD."""
-        ts = simple_recorder.tree_sequence()
+        trees = simple_recorder.recorded_trees()
         gradients = np.array(simple_recorder.gradients)
         
-        tsd = stt.TreeSteinDiscrepancy(ts, gradients)
+        tsd = stt.TreeSteinDiscrepancy(trees, gradients)
         ksd = tsd.ksd()
         
         assert ksd >= 0
@@ -433,19 +433,19 @@ class TestEdgeCases:
         
     def test_thin_all_points(self, simple_recorder):
         """Thinning to all points should work."""
-        n = simple_recorder.tree_sequence().num_trees
+        n = len(simple_recorder.mutation_rates)
         indices = stt.thin_trees(simple_recorder, n_points=n)
         assert len(indices) == n
         
     def test_empty_gradients_fallback(self, simple_recorder):
         """Should handle case with zero gradients."""
-        ts = simple_recorder.tree_sequence()
-        n = ts.num_trees
+        trees = simple_recorder.recorded_trees()
+        n = len(trees)
         
         # Zero gradients
         gradients = np.zeros((n, 1))
         
-        tsd = stt.TreeSteinDiscrepancy(ts, gradients)
+        tsd = stt.TreeSteinDiscrepancy(trees, gradients)
         ksd = tsd.ksd()
         
         assert ksd >= 0

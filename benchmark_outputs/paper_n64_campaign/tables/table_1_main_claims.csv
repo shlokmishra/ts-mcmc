@@ -1,0 +1,5 @@
+claim_class,metric,result,status,note
+A. Structure vs fresh TS,interval fraction / raw .trees to fresh TS,0.952 / 0.047,Foreground,Strongest current result.
+B. Storage vs Newick,raw .trees / raw Newick ; .trees.gz / Newick.gz,0.113 ; 1.003,Cautious,Raw storage favorable; gzip near parity.
+C. Runtime overhead,record overhead %,0.7,Foreground,For this tuned n=64 regime only.
+D. Analytics,bulk TS / per-sample Newick ; random ts.at / random Newick,0.034 ; 1.096,Mixed,Bulk scans strong; random access not headline-worthy.

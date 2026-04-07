@@ -140,6 +140,55 @@ class Tree:
             
         return log_density
 
+    def sample_internal_node(self):
+        """Sample a single internal node uniformly."""
+        return numpy.random.randint(self.sample_size, len(self.parent))
+
+    def propose_local_time(self, step_size=1.0):
+        """
+        Propose a local update to one internal node time.
+
+        Non-root nodes use a symmetric random walk in logit space within the
+        feasible interval `(max(child_times), parent_time)`. The root uses a
+        log-normal random walk on its gap above the oldest child.
+
+        Returns
+        -------
+        node : int
+            Updated node index.
+        old_time : float
+            Previous node time.
+        log_reverse_minus_forward : float
+            Hastings correction term `log q(old|new) - log q(new|old)`.
+        """
+        node = self.sample_internal_node()
+        old_time = float(self.time[node])
+        lower = max(self.time[self.left_child[node]], self.time[self.right_child[node]])
+        parent = self.parent[node]
+
+        if parent == -1:
+            old_gap = max(old_time - lower, 1e-12)
+            log_old_gap = numpy.log(old_gap)
+            log_new_gap = log_old_gap + step_size * numpy.random.randn()
+            new_gap = float(numpy.exp(log_new_gap))
+            self.time[node] = lower + new_gap
+            return node, old_time, log_new_gap - log_old_gap
+
+        upper = float(self.time[parent])
+        span = max(upper - lower, 1e-12)
+        old_frac = min(max((old_time - lower) / span, 1e-12), 1 - 1e-12)
+        logit_old = numpy.log(old_frac / (1.0 - old_frac))
+        logit_new = logit_old + step_size * numpy.random.randn()
+        new_frac = 1.0 / (1.0 + numpy.exp(-logit_new))
+        new_frac = min(max(new_frac, 1e-12), 1 - 1e-12)
+        self.time[node] = lower + span * new_frac
+
+        return (
+            node,
+            old_time,
+            numpy.log(new_frac * (1.0 - new_frac)) - numpy.log(old_frac * (1.0 - old_frac)),
+        )
+
 
     def sample_leaf(self):
         node = numpy.random.choice(numpy.arange(self.sample_size))
@@ -148,6 +197,29 @@ class Tree:
     def sample_node(self):
         node = numpy.random.choice(len(self.parent))
         return node
+
+    def sample_reattach_target(self, child, local_k=None):
+        """
+        Sample a reattachment target for a leaf SPR move.
+
+        When `local_k` is provided, choose uniformly among the `k` eligible
+        nodes whose times are closest to the current parent time. This makes
+        SPR moves less disruptive in larger trees while preserving the original
+        global mode as a fallback.
+        """
+        parent = self.parent[child]
+        sib = self.sibling(child)
+        excluded = {child, parent, sib}
+        candidates = [node for node in range(len(self.parent)) if node not in excluded]
+        if not candidates:
+            raise RuntimeError("No valid reattachment target available.")
+
+        if local_k is None or local_k <= 0 or local_k >= len(candidates):
+            return int(numpy.random.choice(candidates))
+
+        parent_time = self.time[parent]
+        candidates.sort(key=lambda node: (abs(self.time[node] - parent_time), numpy.random.random()))
+        return int(numpy.random.choice(candidates[:local_k]))
 
     def replace_child(self, node, child, new_child):
         if self.left_child[node] == child:
