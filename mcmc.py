@@ -1,6 +1,8 @@
 import math
 import numpy
 import random
+import time
+from collections import deque
 from scipy.stats import gamma
 
 from recorder import Recorder
@@ -10,7 +12,9 @@ from tree import Tree
 def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
                  record=True, compute_gradients=True, print_every=10,
                  mutation_step_size=None, time_move="global", time_step_size=1.0,
-                 spr_local_k=None, spr_moves_per_step=1):
+                 spr_local_k=None, spr_moves_per_step=1,
+                 spr_proposal="spr", spr_debug=False,
+                 iteration_logger=None, acceptance_window=100):
     """
     Performs Markov Chain Monte Carlo (MCMC) sampling on a phylogenetic tree
     using Kingman's coalescent.
@@ -39,6 +43,16 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         nodes closest in time to the current parent.
     - spr_moves_per_step: int
         Number of SPR proposals attempted per outer MCMC iteration.
+    - spr_proposal: {"spr", "local_spr"}
+        Select the baseline global SPR proposal or the new explicit local SPR
+        neighborhood proposal.
+    - spr_debug: bool
+        If True, store and print structured SPR proposal metadata.
+    - iteration_logger: callable or None
+        Optional callback invoked once per outer iteration with a dictionary of
+        diagnostic fields for the topology proposal and current chain state.
+    - acceptance_window: int
+        Window size for rolling topology acceptance diagnostics.
     
     Returns:
     - List containing acceptance probabilities for SPR moves, resampling times,
@@ -64,53 +78,89 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         return gamma.logpdf(rate, a=a, scale=b)
 
     current_log_prior = log_prior_mutation_rate(tree._mutation_rate)
+    run_start = time.perf_counter()
+    rolling_spr_accepts = deque(maxlen=max(1, acceptance_window))
 
     # Determine the number of MCMC steps
     if steps is None:
         steps = int(recorder.tables.sequence_length)
 
     for i in range(steps):
+        iteration_topology = None
         # -------------------
         # 1. SPR Move(s)
         # -------------------
-        for _ in range(spr_moves_per_step):
-            child = tree.sample_leaf()
-            parent = tree.parent[child]
-            sib = tree.sibling(child)
-            new_sib = sib
+        for spr_attempt in range(spr_moves_per_step):
+            if spr_proposal == "spr":
+                proposal = tree.propose_global_spr(local_k=spr_local_k, debug=spr_debug)
+                child = proposal["child"]
+                parent = proposal["old_parent"]
+                sib = proposal["old_sibling"]
+                new_sib = proposal["new_sibling"]
+                new_time = proposal["new_time"]
 
-            if tree.sample_size > 2:
-                attempts = 0
-                max_attempts = 100
-                while new_sib in [child, parent, sib] and attempts < max_attempts:
-                    if spr_local_k is None:
-                        new_sib = tree.sample_node()
-                    else:
-                        new_sib = tree.sample_reattach_target(child, local_k=spr_local_k)
-                    attempts += 1
-                if attempts == max_attempts:
-                    raise RuntimeError("Failed to sample a valid new sibling node.")
+                alpha = -tree.log_reattach_density(child, new_sib, new_time)
+                old_time = tree.time[parent]
+                tree.detach_reattach(child, new_sib, new_time)
+                alpha += tree.log_reattach_density(child, sib, old_time)
+            elif spr_proposal == "local_spr":
+                proposal = tree.propose_local_spr(debug=spr_debug)
+                child = proposal["child"]
+                parent = proposal["old_parent"]
+                sib = proposal["old_sibling"]
+                new_sib = proposal["new_sibling"]
+                new_time = proposal["new_time"]
+                old_time = tree.time[parent]
+                tree.detach_reattach(child, new_sib, new_time)
+                alpha = proposal["log_hastings"]
+            else:
+                raise ValueError(f"Unknown spr_proposal: {spr_proposal}")
 
-            new_time = tree.sample_reattach_time(child, new_sib)
-
-            alpha = -tree.log_reattach_density(child, new_sib, new_time)
-            old_time = tree.time[parent]
-            tree.detach_reattach(child, new_sib, new_time)
-            alpha += tree.log_reattach_density(child, sib, old_time)
             proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
             alpha += proposal_log_likelihood - log_likelihood
+            accepted_spr = math.log(random.random()) < alpha
 
-            if math.log(random.random()) < alpha:
+            if accepted_spr:
                 log_likelihood = proposal_log_likelihood
                 acceptance_count_spr += 1
             else:
                 tree.detach_reattach(child, sib, old_time)
+
+            rolling_spr_accepts.append(1 if accepted_spr else 0)
+            iteration_topology = {
+                "proposal_type": spr_proposal,
+                "spr_attempt": spr_attempt,
+                "accepted": bool(accepted_spr),
+                "log_alpha": float(alpha),
+                "detached_leaf": int(child),
+                "old_parent": int(parent),
+                "old_sibling": int(sib),
+                "chosen_branch": int(new_sib),
+                "log_hastings": proposal.get("log_hastings"),
+                "log_q_forward": proposal.get("log_q_forward"),
+                "log_q_reverse": proposal.get("log_q_reverse"),
+                "forward_candidate_count": (
+                    None if proposal["debug"].get("forward_candidate_count") is None
+                    else int(proposal["debug"]["forward_candidate_count"])
+                ),
+                "reverse_candidate_count": (
+                    None if proposal["debug"].get("reverse_candidate_count") is None
+                    else int(proposal["debug"]["reverse_candidate_count"])
+                ),
+                "forward_candidates": proposal["debug"].get("forward_candidates"),
+                "reverse_candidates": proposal["debug"].get("reverse_candidates"),
+                "sampled_time": float(new_time),
+            }
+
+            if spr_debug:
+                print(f"SPR debug: {proposal['debug']}")
 
         # -------------------
         # 2. Resample Node Times
         # -------------------
         old_times = tree.time.copy()
         log_time_hastings = 0.0
+        accepted_time_move = False
         if time_move == "global":
             tree.resample_times()
         elif time_move == "local":
@@ -124,6 +174,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         if math.log(random.random()) < alpha:
             log_likelihood = proposal_log_likelihood
             acceptance_count_times += 1
+            accepted_time_move = True
         else:
             tree.time = old_times.copy()
 
@@ -131,6 +182,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         # 3. Mutation Rate Resampling
         # -------------------
         old_mutation_rate, log_proposal_density, log_reverse_proposal_density = tree.resample_mutation_rate(step_size=mutation_step_size)
+        accepted_mutation_move = False
 
         proposal_log_prior = log_prior_mutation_rate(tree._mutation_rate)
 
@@ -142,8 +194,41 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
             log_likelihood = proposal_log_likelihood
             current_log_prior = proposal_log_prior
             acceptance_count_mutations += 1
+            accepted_mutation_move = True
         else:
             tree._mutation_rate = old_mutation_rate
+
+        current_log_target = log_likelihood + current_log_prior
+        if iteration_logger is not None and iteration_topology is not None:
+            rolling_acceptance = sum(rolling_spr_accepts) / len(rolling_spr_accepts)
+            cumulative_acceptance = acceptance_count_spr / ((i + 1) * spr_moves_per_step)
+            iteration_logger(
+                {
+                    "iteration": int(i),
+                    "proposal_type": iteration_topology["proposal_type"],
+                    "accepted": iteration_topology["accepted"],
+                    "log_likelihood": float(log_likelihood),
+                    "log_target": float(current_log_target),
+                    "log_alpha": iteration_topology["log_alpha"],
+                    "log_hastings": iteration_topology["log_hastings"],
+                    "log_q_forward": iteration_topology["log_q_forward"],
+                    "log_q_reverse": iteration_topology["log_q_reverse"],
+                    "mutation_rate": float(tree._mutation_rate),
+                    "root_time": float(tree.time[tree.root]),
+                    "cumulative_acceptance_rate": float(cumulative_acceptance),
+                    "rolling_acceptance_rate": float(rolling_acceptance),
+                    "elapsed_s": float(time.perf_counter() - run_start),
+                    "detached_leaf": iteration_topology["detached_leaf"],
+                    "chosen_branch": iteration_topology["chosen_branch"],
+                    "forward_candidate_count": iteration_topology["forward_candidate_count"],
+                    "reverse_candidate_count": iteration_topology["reverse_candidate_count"],
+                    "sampled_time": iteration_topology["sampled_time"],
+                    "forward_candidates_json": iteration_topology["forward_candidates"],
+                    "reverse_candidates_json": iteration_topology["reverse_candidates"],
+                    "time_move_accepted": bool(accepted_time_move),
+                    "mutation_move_accepted": bool(accepted_mutation_move),
+                }
+            )
 
         # -------------------
         # 4. Record the Current State

@@ -1,0 +1,48 @@
+{
+  "runs": [
+    {"proposal_type": "spr", "seed": 11, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 11, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 11, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 11, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 11, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 11, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 11, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 11, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+
+    {"proposal_type": "spr", "seed": 22, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 22, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 22, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 22, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 22, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 22, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 22, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 22, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+
+    {"proposal_type": "spr", "seed": 33, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 33, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 33, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 33, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 33, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 33, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 33, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 33, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+
+    {"proposal_type": "spr", "seed": 44, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 44, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 44, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 44, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 44, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 44, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 44, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 44, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+
+    {"proposal_type": "spr", "seed": 55, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 55, "sample_size": 16, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 55, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 55, "sample_size": 32, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 55, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 55, "sample_size": 64, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "spr", "seed": 55, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500},
+    {"proposal_type": "local_spr", "seed": 55, "sample_size": 128, "seq_length": 1400, "steps": 50000, "burn_in": 10000, "time_move": "local", "time_step_size": 1.0, "mutation_step_size": 0.1, "spr_moves_per_step": 2, "acceptance_window": 500}
+  ]
+}

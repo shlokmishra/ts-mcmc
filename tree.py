@@ -37,47 +37,36 @@ class Tree:
             n -= 1
             
         self.root = next_parent - 1
+        self.last_spr_debug = None
         
 
     def is_internal(self, node):
         """Checks if a node is an internal node (not a leaf)."""
         return self.left_child[node] != -1
 
-    def sample_reattach_time(self, child, new_sib):
+    def reattach_interval(self, child, new_sib):
         sib = self.sibling(child)
         new_sib_parent = self.parent[new_sib]
         new_sib_grandparent = self.grandparent(new_sib)
         if sib == new_sib:
             if new_sib_grandparent == -1:
-                ret = self.time[new_sib] + random.expovariate(lambd=1)
-            else:
-                ret = numpy.random.uniform(
-                    self.time[new_sib], self.time[new_sib_grandparent]
-                )
-        else:
-            if new_sib_parent == -1:
-                ret = self.time[new_sib] + random.expovariate(lambd=1)
-            else:
-                ret = numpy.random.uniform(
-                    self.time[new_sib], self.time[new_sib_parent]
-                )
-        return ret
+                return float(self.time[new_sib]), math.inf
+            return float(self.time[new_sib]), float(self.time[new_sib_grandparent])
+        if new_sib_parent == -1:
+            return float(self.time[new_sib]), math.inf
+        return float(self.time[new_sib]), float(self.time[new_sib_parent])
+
+    def sample_reattach_time(self, child, new_sib):
+        lower, upper = self.reattach_interval(child, new_sib)
+        if math.isinf(upper):
+            return lower + random.expovariate(lambd=1)
+        return float(numpy.random.uniform(lower, upper))
 
     def log_reattach_density(self, child, new_sib, new_time):
-        sib = self.sibling(child)
-        new_sib_parent = self.parent[new_sib]
-        new_sib_grandparent = self.grandparent(new_sib)
-        if sib == new_sib:
-            if new_sib_grandparent == -1:
-                ret = self.time[new_sib] - new_time
-            else:
-                ret = -math.log(self.time[new_sib_grandparent] - self.time[new_sib])
-        else:
-            if new_sib_parent == -1:
-                ret = self.time[new_sib] - new_time
-            else:
-                ret = -math.log(self.time[new_sib_parent] - self.time[new_sib])
-        return ret
+        lower, upper = self.reattach_interval(child, new_sib)
+        if math.isinf(upper):
+            return lower - new_time
+        return -math.log(upper - lower)
 
     def resample_times(self):
         """
@@ -198,6 +187,14 @@ class Tree:
         node = numpy.random.choice(len(self.parent))
         return node
 
+    def _validate_leaf_spr_child(self, child):
+        if child < 0 or child >= self.sample_size:
+            raise ValueError("SPR moves currently detach leaves only.")
+        parent = self.parent[child]
+        if parent == -1:
+            raise ValueError("Cannot detach the root as an SPR child.")
+        return int(parent)
+
     def sample_reattach_target(self, child, local_k=None):
         """
         Sample a reattachment target for a leaf SPR move.
@@ -221,6 +218,278 @@ class Tree:
         candidates.sort(key=lambda node: (abs(self.time[node] - parent_time), numpy.random.random()))
         return int(numpy.random.choice(candidates[:local_k]))
 
+    def _detached_parent_after_leaf_spr(self, child, node):
+        """
+        Parent of `node` in the detached topology where `child` has been
+        removed and its original parent suppressed.
+        """
+        self._validate_leaf_spr_child(child)
+        surviving_sibling = self.sibling(child)
+        if node == surviving_sibling:
+            return self.grandparent(child)
+        return int(self.parent[node])
+
+    def _detached_sibling_after_leaf_spr(self, child, node):
+        old_parent = self._validate_leaf_spr_child(child)
+        surviving_sibling = self.sibling(child)
+        if node == surviving_sibling:
+            grandparent = self.grandparent(child)
+            if grandparent == -1:
+                return -1
+            return int(self.sibling(old_parent))
+
+        parent = self._detached_parent_after_leaf_spr(child, node)
+        if parent == -1:
+            return -1
+        sibling = self.left_child[parent]
+        if sibling == node:
+            sibling = self.right_child[parent]
+        return int(sibling)
+
+    def _add_local_spr_candidate(self, candidates_by_node, child, branch_node, source, description):
+        if branch_node in (-1, child):
+            return
+        candidate = candidates_by_node.setdefault(
+            int(branch_node),
+            {
+                "branch_node": int(branch_node),
+                "sources": [],
+                "description": [],
+            },
+        )
+        candidate["sources"].append(source)
+        candidate["description"].append(description)
+
+    def get_local_spr_candidates(self, child):
+        """
+        Enumerate the local SPR neighborhood around node `A`.
+
+        `A` is defined here as the surviving sibling of the detached leaf
+        after suppressing the detached leaf's old parent. Candidates are
+        branches in that detached topology.
+        """
+        self._validate_leaf_spr_child(child)
+        a_node = self.sibling(child)
+        candidates_by_node = {}
+
+        # Original reattachment branch above A.
+        self._add_local_spr_candidate(
+            candidates_by_node,
+            child,
+            a_node,
+            "above_a",
+            "branch above A, the surviving sibling after detach",
+        )
+
+        # Two branches below A when A is internal.
+        if self.is_internal(a_node):
+            self._add_local_spr_candidate(
+                candidates_by_node,
+                child,
+                self.left_child[a_node],
+                "below_a_left",
+                "left branch below A",
+            )
+            self._add_local_spr_candidate(
+                candidates_by_node,
+                child,
+                self.right_child[a_node],
+                "below_a_right",
+                "right branch below A",
+            )
+
+        # Branch above the detached-tree sibling of A.
+        self._add_local_spr_candidate(
+            candidates_by_node,
+            child,
+            self._detached_sibling_after_leaf_spr(child, a_node),
+            "above_sibling_of_a",
+            "branch above the detached-tree sibling of A",
+        )
+
+        # Branch above the detached-tree parent of A.
+        self._add_local_spr_candidate(
+            candidates_by_node,
+            child,
+            self._detached_parent_after_leaf_spr(child, a_node),
+            "above_parent_of_a",
+            "branch above the detached-tree parent of A",
+        )
+
+        candidates = []
+        for branch_node, candidate in sorted(candidates_by_node.items()):
+            lower, upper = self.reattach_interval(child, branch_node)
+            candidates.append(
+                {
+                    "branch_node": int(branch_node),
+                    "sources": candidate["sources"],
+                    "description": candidate["description"],
+                    "interval_lower": lower,
+                    "interval_upper": upper,
+                    "parent_after_detach": self._detached_parent_after_leaf_spr(child, branch_node),
+                }
+            )
+        return candidates
+
+    def propose_global_spr(self, local_k=None, child=None, debug=False):
+        if child is None:
+            child = int(self.sample_leaf())
+        parent = self._validate_leaf_spr_child(child)
+        a_node = self.sibling(child)
+        new_sib = a_node
+
+        if self.sample_size > 2:
+            attempts = 0
+            max_attempts = 100
+            while new_sib in [child, parent, a_node] and attempts < max_attempts:
+                if local_k is None:
+                    new_sib = int(self.sample_node())
+                else:
+                    new_sib = int(self.sample_reattach_target(child, local_k=local_k))
+                attempts += 1
+            if attempts == max_attempts:
+                raise RuntimeError("Failed to sample a valid new sibling node.")
+
+        interval_lower, interval_upper = self.reattach_interval(child, new_sib)
+        new_time = self.sample_reattach_time(child, new_sib)
+        debug_info = {
+            "proposal": "spr",
+            "child": int(child),
+            "old_parent": int(parent),
+            "a_node": int(a_node),
+            "chosen_branch_node": int(new_sib),
+            "interval_lower": interval_lower,
+            "interval_upper": interval_upper,
+            "sampled_time": float(new_time),
+        }
+        if debug:
+            self.last_spr_debug = debug_info
+        return {
+            "child": int(child),
+            "old_parent": int(parent),
+            "old_sibling": int(a_node),
+            "new_sibling": int(new_sib),
+            "new_time": float(new_time),
+            "log_q_forward": None,
+            "log_q_reverse": None,
+            "log_hastings": None,
+            "debug": debug_info,
+        }
+
+    def _snapshot_tree_state(self):
+        return {
+            "left_child": self.left_child.copy(),
+            "right_child": self.right_child.copy(),
+            "parent": self.parent.copy(),
+            "time": self.time.copy(),
+            "root": int(self.root),
+        }
+
+    def _restore_tree_state(self, state):
+        self.left_child = state["left_child"].copy()
+        self.right_child = state["right_child"].copy()
+        self.parent = state["parent"].copy()
+        self.time = state["time"].copy()
+        self.root = int(state["root"])
+
+    def _local_spr_log_q(self, child, candidates, branch_node, attach_time):
+        if not candidates:
+            return -math.inf
+        candidate_map = {candidate["branch_node"]: candidate for candidate in candidates}
+        chosen = candidate_map.get(int(branch_node))
+        if chosen is None:
+            return -math.inf
+        return (
+            -math.log(self.sample_size)
+            -math.log(len(candidates))
+            + self.log_reattach_density(child, int(branch_node), attach_time)
+        )
+
+    def build_local_spr_proposal_metadata(self, child, new_sib, new_time):
+        parent = self._validate_leaf_spr_child(child)
+        old_sibling = self.sibling(child)
+        old_time = float(self.time[parent])
+        a_node = old_sibling
+        forward_candidates = self.get_local_spr_candidates(child)
+        forward_log_q = self._local_spr_log_q(child, forward_candidates, new_sib, new_time)
+
+        state = self._snapshot_tree_state()
+        try:
+            self.detach_reattach(child, new_sib, new_time)
+            reverse_candidates = self.get_local_spr_candidates(child)
+            reverse_log_q = self._local_spr_log_q(child, reverse_candidates, old_sibling, old_time)
+        finally:
+            self._restore_tree_state(state)
+
+        chosen_forward = next(
+            candidate for candidate in forward_candidates if candidate["branch_node"] == int(new_sib)
+        )
+        reverse_chosen = None
+        for candidate in reverse_candidates:
+            if candidate["branch_node"] == int(old_sibling):
+                reverse_chosen = candidate
+                break
+
+        return {
+            "proposal": "local_spr",
+            "child": int(child),
+            "old_parent": int(parent),
+            "old_sibling": int(old_sibling),
+            "old_parent_time": old_time,
+            "a_node": int(a_node),
+            "forward_candidates": forward_candidates,
+            "forward_candidate_count": len(forward_candidates),
+            "chosen_candidate": chosen_forward,
+            "chosen_branch_node": int(new_sib),
+            "forward_interval_lower": chosen_forward["interval_lower"],
+            "forward_interval_upper": chosen_forward["interval_upper"],
+            "sampled_time": float(new_time),
+            "reverse_candidates": reverse_candidates,
+            "reverse_candidate_count": len(reverse_candidates),
+            "reverse_chosen_candidate": reverse_chosen,
+            "reverse_branch_node": int(old_sibling),
+            "reverse_interval_lower": None if reverse_chosen is None else reverse_chosen["interval_lower"],
+            "reverse_interval_upper": None if reverse_chosen is None else reverse_chosen["interval_upper"],
+            "log_q_forward": float(forward_log_q),
+            "log_q_reverse": float(reverse_log_q),
+            "log_hastings": float(reverse_log_q - forward_log_q),
+        }
+
+    def propose_local_spr(self, child=None, branch_node=None, debug=False):
+        if child is None:
+            child = int(self.sample_leaf())
+        parent = self._validate_leaf_spr_child(child)
+        a_node = self.sibling(child)
+        candidates = self.get_local_spr_candidates(child)
+        if not candidates:
+            raise RuntimeError("No valid local SPR candidates available.")
+
+        candidate_map = {candidate["branch_node"]: candidate for candidate in candidates}
+        if branch_node is None:
+            chosen = random.choice(candidates)
+        else:
+            branch_node = int(branch_node)
+            if branch_node not in candidate_map:
+                raise ValueError(f"Branch node {branch_node} is not a valid local SPR candidate.")
+            chosen = candidate_map[branch_node]
+
+        new_sib = chosen["branch_node"]
+        new_time = self.sample_reattach_time(child, new_sib)
+        debug_info = self.build_local_spr_proposal_metadata(child, new_sib, new_time)
+        if debug:
+            self.last_spr_debug = debug_info
+        return {
+            "child": int(child),
+            "old_parent": int(parent),
+            "old_sibling": int(a_node),
+            "new_sibling": int(new_sib),
+            "new_time": float(new_time),
+            "log_q_forward": debug_info["log_q_forward"],
+            "log_q_reverse": debug_info["log_q_reverse"],
+            "log_hastings": debug_info["log_hastings"],
+            "debug": debug_info,
+        }
+
     def replace_child(self, node, child, new_child):
         if self.left_child[node] == child:
             self.left_child[node] = new_child
@@ -234,6 +503,9 @@ class Tree:
         new_sib_parent = self.parent[new_sib]
         self.time[child_parent] = new_time
         if sib != new_sib:
+            new_root = self.root
+            if sib_grandparent == -1:
+                new_root = sib
             self.parent[new_sib] = child_parent
             self.parent[sib] = sib_grandparent
             self.parent[child_parent] = new_sib_parent
@@ -242,6 +514,9 @@ class Tree:
                 self.replace_child(sib_grandparent, child_parent, sib)
             if new_sib_parent != -1:
                 self.replace_child(new_sib_parent, new_sib, child_parent)
+            else:
+                new_root = child_parent
+            self.root = new_root
 
     def sibling(self, node):
         ret = -1
