@@ -11,7 +11,6 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmark_longchain_diagnostics import effective_sample_size
 from mcmc import kingman_mcmc
 from recorder import Recorder
 from tree import coalescence_tree_with_sequences
@@ -63,6 +62,26 @@ def to_jsonable(value):
 def seed_all(seed: int) -> None:
     np.random.seed(seed)
     random.seed(seed)
+
+
+def effective_sample_size(xs) -> float:
+    arr = np.asarray(xs, dtype=float)
+    n = arr.size
+    if n < 4:
+        return float(n)
+    centered = arr - arr.mean()
+    var = np.dot(centered, centered) / n
+    if var <= 1e-15:
+        return float(n)
+    rho_sum = 0.0
+    prev_rho = None
+    for lag in range(1, min(n - 1, n // 2) + 1):
+        rho = np.dot(centered[:-lag], centered[lag:]) / ((n - lag) * var)
+        if prev_rho is not None and prev_rho + rho < 0:
+            break
+        rho_sum += rho
+        prev_rho = rho
+    return float(n / max(1.0, 1.0 + 2.0 * rho_sum))
 
 
 def get_git_commit() -> str | None:
