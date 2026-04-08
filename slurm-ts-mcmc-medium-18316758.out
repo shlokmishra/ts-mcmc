@@ -1,0 +1,146 @@
+✅ GKD venv activated with full toolchain (modules loaded first)
+=== 2026-04-08T03:26:00-05:00 host=c432 cwd=/home/shlokmishra08/code/ts-mcmc ===
+python=/scratch/user/shlokmishra08/virtual_envs/gkdvenv/bin/python (Python 3.11.5)
+[2026-04-08T03:26:04-05:00] progress: 0/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T03:31:04-05:00] progress: 2/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T03:36:04-05:00] progress: 3/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T03:41:05-05:00] progress: 4/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T03:46:05-05:00] progress: 4/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T03:51:05-05:00] progress: 5/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T03:56:05-05:00] progress: 5/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:01:05-05:00] progress: 6/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:06:05-05:00] progress: 6/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:11:05-05:00] progress: 6/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:16:06-05:00] progress: 7/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:21:06-05:00] progress: 7/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:26:06-05:00] progress: 7/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:31:07-05:00] progress: 7/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:36:07-05:00] progress: 8/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:41:07-05:00] progress: 8/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:46:07-05:00] progress: 8/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:51:07-05:00] progress: 8/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T04:56:08-05:00] progress: 8/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:01:08-05:00] progress: 9/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:06:08-05:00] progress: 10/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:11:08-05:00] progress: 11/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:16:08-05:00] progress: 12/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:21:08-05:00] progress: 13/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:26:09-05:00] progress: 13/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:31:09-05:00] progress: 13/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:36:10-05:00] progress: 14/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:41:10-05:00] progress: 14/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:46:10-05:00] progress: 15/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:51:10-05:00] progress: 15/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T05:56:11-05:00] progress: 15/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:01:11-05:00] progress: 15/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:06:11-05:00] progress: 15/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:11:11-05:00] progress: 16/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:16:11-05:00] progress: 16/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:21:12-05:00] progress: 16/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:26:13-05:00] progress: 16/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:31:13-05:00] progress: 16/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:36:13-05:00] progress: 17/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:41:14-05:00] progress: 18/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:46:14-05:00] progress: 19/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:51:14-05:00] progress: 20/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T06:56:14-05:00] progress: 20/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:01:15-05:00] progress: 21/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:06:15-05:00] progress: 21/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:11:15-05:00] progress: 22/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:16:15-05:00] progress: 22/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:21:15-05:00] progress: 22/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:26:16-05:00] progress: 23/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:31:16-05:00] progress: 23/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:36:16-05:00] progress: 23/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:41:16-05:00] progress: 23/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:46:16-05:00] progress: 24/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:51:16-05:00] progress: 24/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T07:56:17-05:00] progress: 24/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:01:17-05:00] progress: 24/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:06:17-05:00] progress: 24/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:11:17-05:00] progress: 25/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:16:18-05:00] progress: 26/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:21:18-05:00] progress: 27/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:26:18-05:00] progress: 28/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:31:18-05:00] progress: 29/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:36:18-05:00] progress: 29/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:41:18-05:00] progress: 29/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:46:19-05:00] progress: 30/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:51:19-05:00] progress: 30/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T08:56:20-05:00] progress: 31/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:01:20-05:00] progress: 31/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:06:20-05:00] progress: 31/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:11:20-05:00] progress: 31/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:16:21-05:00] progress: 31/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:21:21-05:00] progress: 31/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:26:21-05:00] progress: 32/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:31:21-05:00] progress: 32/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:36:22-05:00] progress: 32/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:41:22-05:00] progress: 32/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:46:22-05:00] progress: 32/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:51:22-05:00] progress: 33/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T09:56:23-05:00] progress: 35/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:01:23-05:00] progress: 35/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:06:23-05:00] progress: 36/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:11:24-05:00] progress: 37/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:16:24-05:00] progress: 37/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:21:24-05:00] progress: 37/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:26:24-05:00] progress: 38/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:31:24-05:00] progress: 38/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:36:25-05:00] progress: 38/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:41:25-05:00] progress: 39/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:46:25-05:00] progress: 39/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:51:25-05:00] progress: 39/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T10:56:25-05:00] progress: 39/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T11:01:26-05:00] progress: 39/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T11:06:26-05:00] progress: 40/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T11:11:27-05:00] progress: 40/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T11:16:27-05:00] progress: 40/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T11:21:27-05:00] progress: 40/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+[2026-04-08T11:26:27-05:00] progress: 40/40 (output_root=benchmark_outputs/mcmc_medium_comparison_18316758)
+{
+  "runs": [
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_11__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_11__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_11__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_11__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_11__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_11__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_11__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_11__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_22__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_22__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_22__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_22__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_22__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_22__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_22__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_22__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_33__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_33__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_33__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_33__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_33__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_33__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_33__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_33__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_44__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_44__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_44__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_44__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_44__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_44__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_44__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_44__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_55__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_55__n_16__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_55__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_55__n_32__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_55__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_55__n_64__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_spr__seed_55__n_128__L_1400__steps_50000",
+    "benchmark_outputs/mcmc_medium_comparison_18316758/proposal_local_spr__seed_55__n_128__L_1400__steps_50000"
+  ],
+  "aggregate_csv": "benchmark_outputs/mcmc_medium_comparison_18316758/aggregate_summary.csv"
+}
+=== 2026-04-08T11:29:52-05:00 finished OK ===
