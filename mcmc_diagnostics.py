@@ -146,6 +146,15 @@ class CSVTraceLogger:
 
 
 def load_trace_rows(trace_csv_path: Path) -> list[dict]:
+    def parse_numeric(value: str):
+        lowered = value.strip().lower()
+        if lowered in {"inf", "+inf", "-inf", "nan"}:
+            return float(lowered)
+        try:
+            return int(value)
+        except ValueError:
+            return float(value)
+
     rows = []
     with open(trace_csv_path, newline="") as f:
         reader = csv.DictReader(f)
@@ -167,7 +176,7 @@ def load_trace_rows(trace_csv_path: Path) -> list[dict]:
                 elif value in ("", None):
                     parsed[key] = None
                 else:
-                    parsed[key] = float(value) if "." in value or "e" in value.lower() else int(value)
+                    parsed[key] = parse_numeric(value)
             rows.append(parsed)
     return rows
 

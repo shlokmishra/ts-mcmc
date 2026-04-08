@@ -3,6 +3,8 @@ import numpy
 import random
 import scipy.special
 
+MAX_LOG_FLOAT = math.log(numpy.finfo(float).max)
+
 
 class Tree:
     def __init__(self, sample_size, n_states,sequences=None):
@@ -159,7 +161,13 @@ class Tree:
             old_gap = max(old_time - lower, 1e-12)
             log_old_gap = numpy.log(old_gap)
             log_new_gap = log_old_gap + step_size * numpy.random.randn()
+            if not numpy.isfinite(log_new_gap) or log_new_gap > MAX_LOG_FLOAT:
+                self.time[node] = old_time
+                return node, old_time, -math.inf
             new_gap = float(numpy.exp(log_new_gap))
+            if not numpy.isfinite(new_gap):
+                self.time[node] = old_time
+                return node, old_time, -math.inf
             self.time[node] = lower + new_gap
             return node, old_time, log_new_gap - log_old_gap
 
@@ -542,6 +550,22 @@ class Tree:
             )
         return ret
 
+    def has_valid_times(self, tol=1e-12):
+        if not numpy.all(numpy.isfinite(self.time)):
+            return False
+        if not numpy.isfinite(self._mutation_rate) or self._mutation_rate <= 0:
+            return False
+        for node in range(self.sample_size, len(self.parent)):
+            left = self.left_child[node]
+            right = self.right_child[node]
+            if left == -1 or right == -1:
+                return False
+            if self.time[node] + tol < self.time[left]:
+                return False
+            if self.time[node] + tol < self.time[right]:
+                return False
+        return True
+
     def transition_probability(self, t, mutation_rate):
         """
         Compute the transition probability matrix P(t) for all state pairs
@@ -549,6 +573,10 @@ class Tree:
         """
         n_states = self.n_states
         alpha = mutation_rate
+        if t < 0 or not numpy.isfinite(t):
+            raise ValueError(f"Invalid branch length {t}.")
+        if not numpy.isfinite(alpha) or alpha <= 0:
+            raise ValueError(f"Invalid mutation rate {alpha}.")
         
         exp_factor = numpy.exp(-n_states * alpha * t)
         
@@ -566,6 +594,10 @@ class Tree:
         """
         n_states = self.n_states
         alpha = mutation_rate
+        if t < 0 or not numpy.isfinite(t):
+            raise ValueError(f"Invalid branch length {t}.")
+        if not numpy.isfinite(alpha) or alpha <= 0:
+            raise ValueError(f"Invalid mutation rate {alpha}.")
         
         exp_factor = numpy.exp(-n_states * alpha * t)
         factor = -n_states * alpha * exp_factor
@@ -582,6 +614,8 @@ class Tree:
         Compute the log-likelihood for a single site (position) in the sequences.
         Uses matrix-based transition probabilities for efficiency.
         """
+        if not self.has_valid_times() or not numpy.isfinite(mutation_rate) or mutation_rate <= 0:
+            return -math.inf
         n_states = self.n_states
         L = numpy.full((2 * self.sample_size - 1, n_states), -numpy.inf)
 
@@ -630,6 +664,8 @@ class Tree:
         Processes all sites simultaneously using matrix operations instead of
         looping site-by-site. Uses probability space with Felsenstein's pruning.
         """
+        if not self.has_valid_times() or not numpy.isfinite(mutation_rate) or mutation_rate <= 0:
+            return -math.inf
         n_sites = len(self.sequences[0])
         n_states = self.n_states
         n_nodes = 2 * self.sample_size - 1

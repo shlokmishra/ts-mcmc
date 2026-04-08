@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from mcmc_diagnostics import RunConfig, run_logged_chain
+from mcmc_diagnostics import RunConfig, load_trace_rows, run_logged_chain
 from scripts.aggregate_mcmc_runs import collect_run_summaries, make_comparison_plot, write_comparison_table, write_rows_csv
 from scripts.plot_mcmc_diagnostics import generate_run_plots
 from scripts.run_mcmc_experiments import run_configs
@@ -126,3 +126,16 @@ def test_aggregation_helper_writes_outputs(tmp_path):
     assert (output_dir / "combined_summaries.csv").exists()
     assert (output_dir / "comparison_table.csv").exists()
     assert (output_dir / "comparison_plot.png").exists()
+
+
+def test_load_trace_rows_handles_inf_and_nan(tmp_path):
+    trace_path = tmp_path / "trace.csv"
+    trace_path.write_text(
+        "iteration,proposal_type,accepted,log_likelihood,log_target,log_alpha,log_hastings,log_q_forward,log_q_reverse,mutation_rate,root_time,cumulative_acceptance_rate,rolling_acceptance_rate,elapsed_s,detached_leaf,chosen_branch,forward_candidate_count,reverse_candidate_count,sampled_time,forward_candidates_json,reverse_candidates_json,time_move_accepted,mutation_move_accepted\n"
+        "0,local_spr,True,inf,nan,-inf,0.5,1.0,1.5,0.1,2.0,1.0,1.0,0.2,3,4,5,6,7.0,[],[],True,False\n"
+    )
+
+    rows = load_trace_rows(trace_path)
+    assert rows[0]["log_likelihood"] == float("inf")
+    assert str(rows[0]["log_target"]).lower() == "nan"
+    assert rows[0]["log_alpha"] == float("-inf")
