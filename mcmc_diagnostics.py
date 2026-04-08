@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import random
 import subprocess
@@ -186,6 +187,11 @@ def mean_std(values: list[float]) -> tuple[float, float]:
     return float(arr.mean()), float(arr.std())
 
 
+def finite_only(values: list[float]) -> list[float]:
+    arr = np.asarray(values, dtype=float)
+    return [float(x) for x in arr[np.isfinite(arr)]]
+
+
 def summarize_trace_rows(rows: list[dict], burn_in: int) -> dict:
     post_rows = rows[burn_in:] if burn_in < len(rows) else []
     if not rows:
@@ -195,8 +201,12 @@ def summarize_trace_rows(rows: list[dict], burn_in: int) -> dict:
 
     acceptance = [1.0 if row["accepted"] else 0.0 for row in rows]
     rolling = [float(row["rolling_acceptance_rate"]) for row in rows]
-    loglik = [float(row["log_likelihood"]) for row in post_rows]
-    target = [float(row["log_target"]) for row in post_rows]
+    loglik = finite_only([float(row["log_likelihood"]) for row in post_rows])
+    target = finite_only([float(row["log_target"]) for row in post_rows])
+    if not loglik:
+        loglik = [-math.inf]
+    if not target:
+        target = [-math.inf]
     summary = {
         "proposal_type": rows[-1]["proposal_type"],
         "seed": None,
@@ -214,8 +224,12 @@ def summarize_trace_rows(rows: list[dict], burn_in: int) -> dict:
     }
 
     if rows[-1]["proposal_type"] == "local_spr":
-        log_hastings = [float(row["log_hastings"]) for row in rows if row["log_hastings"] is not None]
-        accepted_local = [float(row["log_hastings"]) for row in rows if row["accepted"] and row["log_hastings"] is not None]
+        log_hastings = finite_only(
+            [float(row["log_hastings"]) for row in rows if row["log_hastings"] is not None]
+        )
+        accepted_local = finite_only(
+            [float(row["log_hastings"]) for row in rows if row["accepted"] and row["log_hastings"] is not None]
+        )
         summary.update(
             {
                 "mean_log_hastings": float(np.mean(log_hastings)) if log_hastings else None,
@@ -354,7 +368,12 @@ def run_logged_chain(
     if make_plots:
         from scripts.plot_mcmc_diagnostics import generate_run_plots
 
-        result["plot_paths"] = generate_run_plots(run_dir)
+        try:
+            result["plot_paths"] = generate_run_plots(run_dir)
+        except Exception as exc:
+            error_path = plots_dir / "plot_error.txt"
+            error_path.write_text(f"{type(exc).__name__}: {exc}\n")
+            result["plot_error_path"] = error_path
     return result
 
 

@@ -20,6 +20,50 @@ import numpy as np
 from mcmc_diagnostics import load_trace_rows
 
 
+def finite_xy(rows: list[dict], y_key: str) -> tuple[np.ndarray, np.ndarray]:
+    xs = []
+    ys = []
+    for row in rows:
+        x = row["iteration"]
+        y = row[y_key]
+        if x is None or y is None:
+            continue
+        x = float(x)
+        y = float(y)
+        if np.isfinite(x) and np.isfinite(y):
+            xs.append(x)
+            ys.append(y)
+    return np.asarray(xs, dtype=float), np.asarray(ys, dtype=float)
+
+
+def finite_scatter(rows: list[dict], x_key: str, y_key: str) -> tuple[np.ndarray, np.ndarray]:
+    xs = []
+    ys = []
+    for row in rows:
+        x = row[x_key]
+        y = row[y_key]
+        if x is None or y is None:
+            continue
+        x = float(x)
+        y = float(y)
+        if np.isfinite(x) and np.isfinite(y):
+            xs.append(x)
+            ys.append(y)
+    return np.asarray(xs, dtype=float), np.asarray(ys, dtype=float)
+
+
+def plot_series(ax, rows: list[dict], y_key: str, title: str, xlabel: str = "Iteration") -> None:
+    xs, ys = finite_xy(rows, y_key)
+    if xs.size == 0:
+        ax.text(0.5, 0.5, "No finite data", ha="center", va="center")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    else:
+        ax.plot(xs, ys, lw=1.2)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+
+
 def generate_run_plots(run_dir: str | Path) -> dict:
     run_dir = Path(run_dir)
     trace_path = run_dir / "traces" / "trace.csv"
@@ -30,36 +74,29 @@ def generate_run_plots(run_dir: str | Path) -> dict:
     if not rows:
         raise ValueError(f"No trace rows found in {trace_path}")
 
-    iterations = np.asarray([row["iteration"] for row in rows], dtype=float)
     proposal_type = rows[0]["proposal_type"]
 
     fig, axes = plt.subplots(3, 2, figsize=(11, 9), constrained_layout=True)
 
-    axes[0, 0].plot(iterations, [row["log_likelihood"] for row in rows], lw=1.2)
-    axes[0, 0].set_title("Log Likelihood")
-    axes[0, 0].set_xlabel("Iteration")
+    plot_series(axes[0, 0], rows, "log_likelihood", "Log Likelihood")
 
-    axes[0, 1].plot(iterations, [row["log_target"] for row in rows], lw=1.2)
-    axes[0, 1].set_title("Log Target")
-    axes[0, 1].set_xlabel("Iteration")
+    plot_series(axes[0, 1], rows, "log_target", "Log Target")
 
-    axes[1, 0].plot(iterations, [row["cumulative_acceptance_rate"] for row in rows], lw=1.2)
-    axes[1, 0].set_title("Cumulative Acceptance")
-    axes[1, 0].set_xlabel("Iteration")
+    plot_series(axes[1, 0], rows, "cumulative_acceptance_rate", "Cumulative Acceptance")
     axes[1, 0].set_ylim(0.0, 1.0)
 
-    axes[1, 1].plot(iterations, [row["rolling_acceptance_rate"] for row in rows], lw=1.2)
-    axes[1, 1].set_title("Rolling Acceptance")
-    axes[1, 1].set_xlabel("Iteration")
+    plot_series(axes[1, 1], rows, "rolling_acceptance_rate", "Rolling Acceptance")
     axes[1, 1].set_ylim(0.0, 1.0)
 
     if proposal_type == "local_spr":
-        hastings = [
-            np.nan if row["log_hastings"] is None else float(row["log_hastings"])
-            for row in rows
-        ]
-        axes[2, 0].plot(iterations, hastings, lw=1.0)
-        axes[2, 0].axhline(0.0, color="black", lw=0.8, ls="--")
+        xs, ys = finite_xy(rows, "log_hastings")
+        if xs.size == 0:
+            axes[2, 0].text(0.5, 0.5, "No finite Hastings data", ha="center", va="center")
+            axes[2, 0].set_xticks([])
+            axes[2, 0].set_yticks([])
+        else:
+            axes[2, 0].plot(xs, ys, lw=1.0)
+            axes[2, 0].axhline(0.0, color="black", lw=0.8, ls="--")
         axes[2, 0].set_title("Log Hastings")
     else:
         axes[2, 0].text(0.5, 0.5, "No Hastings term for baseline spr", ha="center", va="center")
@@ -68,9 +105,7 @@ def generate_run_plots(run_dir: str | Path) -> dict:
         axes[2, 0].set_yticks([])
     axes[2, 0].set_xlabel("Iteration")
 
-    axes[2, 1].plot(iterations, [row["root_time"] for row in rows], lw=1.2)
-    axes[2, 1].set_title("Root Time")
-    axes[2, 1].set_xlabel("Iteration")
+    plot_series(axes[2, 1], rows, "root_time", "Root Time")
 
     for ax in axes.ravel():
         ax.grid(alpha=0.2)
@@ -81,12 +116,13 @@ def generate_run_plots(run_dir: str | Path) -> dict:
 
     if proposal_type == "local_spr":
         fig2, ax2 = plt.subplots(figsize=(6.5, 4), constrained_layout=True)
-        ax2.scatter(
-            [row["forward_candidate_count"] for row in rows if row["forward_candidate_count"] is not None],
-            [row["log_hastings"] for row in rows if row["log_hastings"] is not None],
-            s=12,
-            alpha=0.7,
-        )
+        xs, ys = finite_scatter(rows, "forward_candidate_count", "log_hastings")
+        if xs.size == 0:
+            ax2.text(0.5, 0.5, "No finite scatter data", ha="center", va="center")
+            ax2.set_xticks([])
+            ax2.set_yticks([])
+        else:
+            ax2.scatter(xs, ys, s=12, alpha=0.7)
         ax2.set_xlabel("Forward Candidate Count")
         ax2.set_ylabel("Log Hastings")
         ax2.set_title("Hastings vs Local Candidate Count")

@@ -92,6 +92,22 @@ def test_plotting_script_runs_on_tiny_log(tmp_path):
     assert plot_paths["trace_panels"].exists()
 
 
+def test_plotting_script_handles_nonfinite_trace_values(tmp_path):
+    run_dir = tmp_path / "run"
+    traces_dir = run_dir / "traces"
+    traces_dir.mkdir(parents=True)
+    trace_path = traces_dir / "trace.csv"
+    trace_path.write_text(
+        "iteration,proposal_type,accepted,log_likelihood,log_target,log_alpha,log_hastings,log_q_forward,log_q_reverse,mutation_rate,root_time,cumulative_acceptance_rate,rolling_acceptance_rate,elapsed_s,detached_leaf,chosen_branch,forward_candidate_count,reverse_candidate_count,sampled_time,forward_candidates_json,reverse_candidates_json,time_move_accepted,mutation_move_accepted\n"
+        "0,local_spr,True,inf,nan,-inf,inf,1.0,1.5,0.1,inf,1.0,1.0,0.2,3,4,5,6,7.0,[],[],True,False\n"
+        "1,local_spr,False,-10.0,-8.0,-1.0,-0.5,1.0,0.5,0.1,2.0,0.5,0.5,0.4,3,4,5,6,2.5,[],[],False,False\n"
+    )
+
+    plot_paths = generate_run_plots(run_dir)
+    assert plot_paths["trace_panels"].exists()
+    assert plot_paths["secondary"].exists()
+
+
 def test_experiment_runner_creates_expected_output_structure(tmp_path):
     configs = [
         RunConfig(proposal_type="spr", seed=1, sample_size=4, seq_length=6, steps=3),

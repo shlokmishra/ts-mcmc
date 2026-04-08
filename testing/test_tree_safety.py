@@ -33,3 +33,18 @@ def test_propose_local_time_root_overflow_self_rejects(monkeypatch):
     assert returned_old_time == old_time
     assert log_hastings == -math.inf
     assert tree.time[root] == old_time
+
+
+def test_resample_mutation_rate_overflow_self_rejects(monkeypatch):
+    tree = make_internal_a_tree()
+    tree.mutation_rate = 1.0
+    old_rate = float(tree.mutation_rate)
+
+    monkeypatch.setattr(np.random, "randn", lambda: 1e308)
+
+    old_returned, log_forward, log_reverse = tree.resample_mutation_rate(step_size=1.0)
+
+    assert old_returned == old_rate
+    assert log_forward == 0.0
+    assert log_reverse == -math.inf
+    assert tree.mutation_rate == old_rate

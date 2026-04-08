@@ -168,7 +168,11 @@ class Tree:
             if not numpy.isfinite(new_gap):
                 self.time[node] = old_time
                 return node, old_time, -math.inf
-            self.time[node] = lower + new_gap
+            proposed_time = lower + new_gap
+            if not numpy.isfinite(proposed_time):
+                self.time[node] = old_time
+                return node, old_time, -math.inf
+            self.time[node] = proposed_time
             return node, old_time, log_new_gap - log_old_gap
 
         upper = float(self.time[parent])
@@ -831,7 +835,11 @@ class Tree:
         # Log-normal proposal: log(new_rate) ~ N(log(old_rate), step_size^2)
         log_old_rate = numpy.log(old_mutation_rate)
         log_new_rate = log_old_rate + step_size * numpy.random.randn()
+        if not numpy.isfinite(log_new_rate) or log_new_rate > MAX_LOG_FLOAT:
+            return old_mutation_rate, 0.0, -math.inf
         new_rate = numpy.exp(log_new_rate)
+        if not numpy.isfinite(new_rate):
+            return old_mutation_rate, 0.0, -math.inf
         
         # Calculate proposal densities
         # q(new|old) = 1/(new_rate * step_size * sqrt(2*pi)) * exp(-0.5 * ((log(new_rate) - log(old_rate))/step_size)^2)
