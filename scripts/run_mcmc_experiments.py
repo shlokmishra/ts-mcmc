@@ -34,6 +34,9 @@ def build_single_config(args) -> RunConfig:
         record=not args.no_record,
         print_every=None,
         acceptance_window=args.acceptance_window,
+        checkpoint_every=args.checkpoint_every,
+        enable_guard=not args.disable_guard,
+        guard_magnitude_limit=args.guard_magnitude_limit,
     )
 
 
@@ -53,6 +56,9 @@ def main() -> None:
     parser.add_argument("--spr-local-k", type=int, default=None)
     parser.add_argument("--spr-moves-per-step", type=int, default=1)
     parser.add_argument("--acceptance-window", type=int, default=25)
+    parser.add_argument("--checkpoint-every", type=int, default=10000)
+    parser.add_argument("--guard-magnitude-limit", type=float, default=1e100)
+    parser.add_argument("--disable-guard", action="store_true")
     parser.add_argument("--compute-gradients", action="store_true")
     parser.add_argument("--no-record", action="store_true")
     parser.add_argument("--make-plots", action="store_true")

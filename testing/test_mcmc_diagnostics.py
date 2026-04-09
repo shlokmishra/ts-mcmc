@@ -120,6 +120,7 @@ def test_experiment_runner_creates_expected_output_structure(tmp_path):
         assert (result["run_dir"] / "traces" / "trace.csv").exists()
         assert (result["run_dir"] / "summaries" / "summary.json").exists()
         assert (result["run_dir"] / "metadata.json").exists()
+        assert (result["run_dir"] / "run_status.json").exists()
 
 
 def test_aggregation_helper_writes_outputs(tmp_path):
@@ -155,3 +156,45 @@ def test_load_trace_rows_handles_inf_and_nan(tmp_path):
     assert rows[0]["log_likelihood"] == float("inf")
     assert str(rows[0]["log_target"]).lower() == "nan"
     assert rows[0]["log_alpha"] == float("-inf")
+
+
+def test_run_logged_chain_writes_checkpoint(tmp_path):
+    result = run_logged_chain(
+        tmp_path,
+        RunConfig(
+            proposal_type="spr",
+            seed=7,
+            sample_size=4,
+            seq_length=6,
+            steps=5,
+            checkpoint_every=1,
+        ),
+        make_plots=False,
+    )
+
+    checkpoint_path = result["run_dir"] / "checkpoints" / "latest.json"
+    assert checkpoint_path.exists()
+    payload = json.loads(checkpoint_path.read_text())
+    assert "iteration" in payload
+    assert payload["iteration"] >= 0
+
+
+def test_run_logged_chain_guard_aborts_cleanly(tmp_path):
+    result = run_logged_chain(
+        tmp_path,
+        RunConfig(
+            proposal_type="spr",
+            seed=8,
+            sample_size=4,
+            seq_length=6,
+            steps=5,
+            guard_magnitude_limit=0.01,
+            checkpoint_every=1,
+        ),
+        make_plots=True,
+    )
+
+    assert result["summary"]["run_status"] == "aborted_by_guard"
+    assert result["summary"]["guard_reason"] is not None
+    assert (result["run_dir"] / "checkpoints" / "guard_event.json").exists()
+    assert (result["run_dir"] / "plots" / "plot_skipped.txt").exists()

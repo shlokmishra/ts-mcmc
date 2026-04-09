@@ -43,6 +43,8 @@ TRACE_FIELDS = [
     "mutation_move_accepted",
 ]
 
+DEFAULT_MAGNITUDE_LIMIT = 1e100
+
 
 def to_jsonable(value):
     if isinstance(value, dict):
@@ -144,6 +146,88 @@ class CSVTraceLogger:
 
     def close(self) -> None:
         self.handle.close()
+
+
+class NumericalGuardError(RuntimeError):
+    pass
+
+
+class GuardedTraceLogger:
+    def __init__(
+        self,
+        csv_logger: CSVTraceLogger,
+        checkpoints_dir: Path,
+        checkpoint_every: int = 10000,
+        guard_magnitude_limit: float = DEFAULT_MAGNITUDE_LIMIT,
+        enable_guard: bool = True,
+    ):
+        self.csv_logger = csv_logger
+        self.checkpoints_dir = ensure_dir(checkpoints_dir)
+        self.checkpoint_every = max(1, int(checkpoint_every))
+        self.guard_magnitude_limit = float(guard_magnitude_limit)
+        self.enable_guard = enable_guard
+        self.last_checkpoint_path = self.checkpoints_dir / "latest.json"
+        self.guard_event_path = self.checkpoints_dir / "guard_event.json"
+
+    def _write_json(self, path: Path, payload: dict) -> None:
+        path.write_text(json.dumps(to_jsonable(payload), indent=2))
+
+    def _is_guard_violation(self, key: str, value) -> str | None:
+        if value is None:
+            return None
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric_value):
+            return f"{key} became non-finite ({numeric_value})"
+        if abs(numeric_value) > self.guard_magnitude_limit:
+            return (
+                f"{key} exceeded guard magnitude limit "
+                f"({numeric_value} vs {self.guard_magnitude_limit})"
+            )
+        return None
+
+    def _checkpoint_payload(self, row: dict) -> dict:
+        return {
+            "iteration": row.get("iteration"),
+            "proposal_type": row.get("proposal_type"),
+            "accepted": row.get("accepted"),
+            "log_target": row.get("log_target"),
+            "log_alpha": row.get("log_alpha"),
+            "log_hastings": row.get("log_hastings"),
+            "root_time": row.get("root_time"),
+            "mutation_rate": row.get("mutation_rate"),
+            "elapsed_s": row.get("elapsed_s"),
+            "cumulative_acceptance_rate": row.get("cumulative_acceptance_rate"),
+            "rolling_acceptance_rate": row.get("rolling_acceptance_rate"),
+        }
+
+    def __call__(self, row: dict) -> None:
+        self.csv_logger(row)
+        iteration = int(row["iteration"])
+        if iteration % self.checkpoint_every == 0:
+            self._write_json(self.last_checkpoint_path, self._checkpoint_payload(row))
+
+        if not self.enable_guard:
+            return
+
+        for key in ("root_time", "log_hastings", "log_alpha", "log_target"):
+            message = self._is_guard_violation(key, row.get(key))
+            if message is not None:
+                payload = self._checkpoint_payload(row)
+                payload.update(
+                    {
+                        "status": "aborted_by_guard",
+                        "guard_reason": message,
+                    }
+                )
+                self._write_json(self.last_checkpoint_path, payload)
+                self._write_json(self.guard_event_path, payload)
+                raise NumericalGuardError(message)
+
+    def close(self) -> None:
+        self.csv_logger.close()
 
 
 def load_trace_rows(trace_csv_path: Path) -> list[dict]:
@@ -269,6 +353,9 @@ class RunConfig:
     record: bool = True
     print_every: int | None = None
     acceptance_window: int = 100
+    checkpoint_every: int = 10000
+    enable_guard: bool = True
+    guard_magnitude_limit: float = DEFAULT_MAGNITUDE_LIMIT
 
 
 def run_logged_chain(
@@ -287,11 +374,13 @@ def run_logged_chain(
     traces_dir = ensure_dir(run_dir / "traces")
     plots_dir = ensure_dir(run_dir / "plots")
     summaries_dir = ensure_dir(run_dir / "summaries")
+    checkpoints_dir = ensure_dir(run_dir / "checkpoints")
 
     metadata_path = run_dir / "metadata.json"
     trace_csv_path = traces_dir / "trace.csv"
     summary_json_path = summaries_dir / "summary.json"
     summary_csv_path = summaries_dir / "summary.csv"
+    run_status_path = run_dir / "run_status.json"
 
     metadata = {
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -302,6 +391,8 @@ def run_logged_chain(
             "summary_json": str(summary_json_path),
             "summary_csv": str(summary_csv_path),
             "plots_dir": str(plots_dir),
+            "checkpoints_dir": str(checkpoints_dir),
+            "run_status": str(run_status_path),
         },
         **asdict(config),
     }
@@ -313,7 +404,16 @@ def run_logged_chain(
     recorder = Recorder(config.sample_size, config.seq_length)
     pi = np.array([0.5, 0.5])
 
-    logger = CSVTraceLogger(trace_csv_path)
+    logger = GuardedTraceLogger(
+        CSVTraceLogger(trace_csv_path),
+        checkpoints_dir=checkpoints_dir,
+        checkpoint_every=config.checkpoint_every,
+        guard_magnitude_limit=config.guard_magnitude_limit,
+        enable_guard=config.enable_guard,
+    )
+    status = "completed"
+    guard_reason = None
+    acceptances = None
     try:
         acceptances = kingman_mcmc(
             tree,
@@ -332,6 +432,9 @@ def run_logged_chain(
             iteration_logger=logger,
             acceptance_window=config.acceptance_window,
         )
+    except NumericalGuardError as exc:
+        status = "aborted_by_guard"
+        guard_reason = str(exc)
     finally:
         logger.close()
 
@@ -344,9 +447,11 @@ def run_logged_chain(
             "seq_length": config.seq_length,
             "steps": config.steps,
             "burn_in": config.burn_in,
-            "acceptance_spr": float(acceptances[0]),
-            "acceptance_times": float(acceptances[1]),
-            "acceptance_mutation": float(acceptances[2]),
+            "acceptance_spr": (None if acceptances is None else float(acceptances[0])),
+            "acceptance_times": (None if acceptances is None else float(acceptances[1])),
+            "acceptance_mutation": (None if acceptances is None else float(acceptances[2])),
+            "run_status": status,
+            "guard_reason": guard_reason,
         }
     )
     summary_json_path.write_text(json.dumps(summary, indent=2))
@@ -354,6 +459,17 @@ def run_logged_chain(
         writer = csv.DictWriter(f, fieldnames=list(summary.keys()))
         writer.writeheader()
         writer.writerow(summary)
+    run_status_path.write_text(
+        json.dumps(
+            {
+                "status": status,
+                "guard_reason": guard_reason,
+                "iterations_recorded": len(rows),
+                "run_dir": str(run_dir),
+            },
+            indent=2,
+        )
+    )
 
     result = {
         "run_dir": run_dir,
@@ -362,10 +478,11 @@ def run_logged_chain(
         "summary_json_path": summary_json_path,
         "summary_csv_path": summary_csv_path,
         "plots_dir": plots_dir,
+        "run_status_path": run_status_path,
         "summary": summary,
     }
 
-    if make_plots:
+    if make_plots and status == "completed":
         from scripts.plot_mcmc_diagnostics import generate_run_plots
 
         try:
@@ -374,6 +491,10 @@ def run_logged_chain(
             error_path = plots_dir / "plot_error.txt"
             error_path.write_text(f"{type(exc).__name__}: {exc}\n")
             result["plot_error_path"] = error_path
+    elif status != "completed":
+        skip_path = plots_dir / "plot_skipped.txt"
+        skip_path.write_text(f"Plot generation skipped because run status is {status}: {guard_reason}\n")
+        result["plot_skipped_path"] = skip_path
     return result
 
 

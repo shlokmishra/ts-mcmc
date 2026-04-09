@@ -67,6 +67,6 @@ benchmark_outputs/**
 !benchmark_outputs/mcmc_medium_comparison_18316758/aggregate/**
 !benchmark_outputs/mcmc_medium_comparison_18316758/aggregate_summary.csv
 
-# # cluster logs
-# slurm-*.out
-# slurm-*.err
+# cluster logs
+slurm-*.out
+slurm-*.err
