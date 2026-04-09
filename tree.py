@@ -40,6 +40,7 @@ class Tree:
             
         self.root = next_parent - 1
         self.last_spr_debug = None
+        self.last_time_move_debug = None
         
 
     def is_internal(self, node):
@@ -162,18 +163,62 @@ class Tree:
             log_old_gap = numpy.log(old_gap)
             log_new_gap = log_old_gap + step_size * numpy.random.randn()
             if not numpy.isfinite(log_new_gap) or log_new_gap > MAX_LOG_FLOAT:
+                self.last_time_move_debug = {
+                    "node": int(node),
+                    "old_time": old_time,
+                    "new_time": old_time,
+                    "delta": 0.0,
+                    "is_root": True,
+                    "accepted_geometry": False,
+                    "proposal_status": "overflow_log_gap",
+                    "log_hastings": -math.inf,
+                }
                 self.time[node] = old_time
                 return node, old_time, -math.inf
             new_gap = float(numpy.exp(log_new_gap))
             if not numpy.isfinite(new_gap):
+                self.last_time_move_debug = {
+                    "node": int(node),
+                    "old_time": old_time,
+                    "new_time": old_time,
+                    "delta": 0.0,
+                    "is_root": True,
+                    "accepted_geometry": False,
+                    "proposal_status": "overflow_gap",
+                    "log_hastings": -math.inf,
+                }
                 self.time[node] = old_time
                 return node, old_time, -math.inf
             proposed_time = lower + new_gap
             if not numpy.isfinite(proposed_time):
+                self.last_time_move_debug = {
+                    "node": int(node),
+                    "old_time": old_time,
+                    "new_time": proposed_time,
+                    "delta": proposed_time - old_time,
+                    "is_root": True,
+                    "accepted_geometry": False,
+                    "proposal_status": "overflow_root_time",
+                    "log_hastings": -math.inf,
+                }
                 self.time[node] = old_time
                 return node, old_time, -math.inf
             self.time[node] = proposed_time
-            return node, old_time, log_new_gap - log_old_gap
+            log_hastings = log_new_gap - log_old_gap
+            self.last_time_move_debug = {
+                "node": int(node),
+                "old_time": old_time,
+                "new_time": proposed_time,
+                "delta": proposed_time - old_time,
+                "is_root": True,
+                "accepted_geometry": True,
+                "proposal_status": "ok",
+                "log_hastings": float(log_hastings),
+                "lower_bound": float(lower),
+                "old_gap": float(old_gap),
+                "new_gap": float(new_gap),
+            }
+            return node, old_time, log_hastings
 
         upper = float(self.time[parent])
         span = max(upper - lower, 1e-12)
@@ -184,10 +229,26 @@ class Tree:
         new_frac = min(max(new_frac, 1e-12), 1 - 1e-12)
         self.time[node] = lower + span * new_frac
 
+        log_hastings = (
+            numpy.log(new_frac * (1.0 - new_frac)) - numpy.log(old_frac * (1.0 - old_frac))
+        )
+        self.last_time_move_debug = {
+            "node": int(node),
+            "old_time": old_time,
+            "new_time": float(self.time[node]),
+            "delta": float(self.time[node] - old_time),
+            "is_root": False,
+            "accepted_geometry": True,
+            "proposal_status": "ok",
+            "log_hastings": float(log_hastings),
+            "lower_bound": float(lower),
+            "upper_bound": float(upper),
+            "span": float(span),
+        }
         return (
             node,
             old_time,
-            numpy.log(new_frac * (1.0 - new_frac)) - numpy.log(old_frac * (1.0 - old_frac)),
+            log_hastings,
         )
 
 

@@ -78,6 +78,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         return gamma.logpdf(rate, a=a, scale=b)
 
     current_log_prior = log_prior_mutation_rate(tree._mutation_rate)
+    current_log_tree_prior = tree.log_likelihood()
     run_start = time.perf_counter()
     rolling_spr_accepts = deque(maxlen=max(1, acceptance_window))
 
@@ -122,6 +123,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
 
             if accepted_spr:
                 log_likelihood = proposal_log_likelihood
+                current_log_tree_prior = tree.log_likelihood()
                 acceptance_count_spr += 1
             else:
                 tree.detach_reattach(child, sib, old_time)
@@ -160,19 +162,25 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         # -------------------
         old_times = tree.time.copy()
         log_time_hastings = 0.0
+        log_time_prior_delta = 0.0
         accepted_time_move = False
+        time_move_debug = None
         if time_move == "global":
             tree.resample_times()
         elif time_move == "local":
             _, _, log_time_hastings = tree.propose_local_time(step_size=time_step_size)
+            time_move_debug = dict(tree.last_time_move_debug) if tree.last_time_move_debug is not None else None
         else:
             raise ValueError(f"Unknown time_move: {time_move}")
         proposal_log_likelihood = tree.compute_log_likelihood(tree._mutation_rate, pi)
+        proposal_log_tree_prior = tree.log_likelihood()
+        log_time_prior_delta = proposal_log_tree_prior - current_log_tree_prior
 
-        alpha = proposal_log_likelihood - log_likelihood + log_time_hastings
+        alpha = proposal_log_likelihood - log_likelihood + log_time_hastings + log_time_prior_delta
 
         if math.log(random.random()) < alpha:
             log_likelihood = proposal_log_likelihood
+            current_log_tree_prior = proposal_log_tree_prior
             acceptance_count_times += 1
             accepted_time_move = True
         else:
@@ -198,7 +206,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
         else:
             tree._mutation_rate = old_mutation_rate
 
-        current_log_target = log_likelihood + current_log_prior
+        current_log_target = log_likelihood + current_log_prior + current_log_tree_prior
         if iteration_logger is not None and iteration_topology is not None:
             rolling_acceptance = sum(rolling_spr_accepts) / len(rolling_spr_accepts)
             cumulative_acceptance = acceptance_count_spr / ((i + 1) * spr_moves_per_step)
@@ -226,6 +234,14 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
                     "forward_candidates_json": iteration_topology["forward_candidates"],
                     "reverse_candidates_json": iteration_topology["reverse_candidates"],
                     "time_move_accepted": bool(accepted_time_move),
+                    "time_move_node": None if time_move_debug is None else int(time_move_debug["node"]),
+                    "time_move_was_root": None if time_move_debug is None else bool(time_move_debug["is_root"]),
+                    "time_move_old_time": None if time_move_debug is None else float(time_move_debug["old_time"]),
+                    "time_move_new_time": None if time_move_debug is None else float(time_move_debug["new_time"]),
+                    "time_move_delta": None if time_move_debug is None else float(time_move_debug["delta"]),
+                    "time_move_log_hastings": None if time_move_debug is None else float(time_move_debug["log_hastings"]),
+                    "time_move_log_prior_delta": float(log_time_prior_delta),
+                    "time_move_log_alpha": float(alpha),
                     "mutation_move_accepted": bool(accepted_mutation_move),
                 }
             )

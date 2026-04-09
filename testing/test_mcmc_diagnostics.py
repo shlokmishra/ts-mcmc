@@ -54,6 +54,8 @@ def test_local_spr_trace_includes_hastings_columns(tmp_path):
     assert "log_hastings" in rows[0]
     assert "log_q_forward" in rows[0]
     assert "log_q_reverse" in rows[0]
+    assert "time_move_node" in rows[0]
+    assert "time_move_log_prior_delta" in rows[0]
     assert any("local_spr" in line for line in rows[1:])
 
 

@@ -40,6 +40,14 @@ TRACE_FIELDS = [
     "forward_candidates_json",
     "reverse_candidates_json",
     "time_move_accepted",
+    "time_move_node",
+    "time_move_was_root",
+    "time_move_old_time",
+    "time_move_new_time",
+    "time_move_delta",
+    "time_move_log_hastings",
+    "time_move_log_prior_delta",
+    "time_move_log_alpha",
     "mutation_move_accepted",
 ]
 
@@ -255,6 +263,7 @@ def load_trace_rows(trace_csv_path: Path) -> list[dict]:
                 elif key in {
                     "accepted",
                     "time_move_accepted",
+                    "time_move_was_root",
                     "mutation_move_accepted",
                 }:
                     parsed[key] = value == "True"

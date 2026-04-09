@@ -1,4 +1,5 @@
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -48,3 +49,44 @@ def test_resample_mutation_rate_overflow_self_rejects(monkeypatch):
     assert log_forward == 0.0
     assert log_reverse == -math.inf
     assert tree.mutation_rate == old_rate
+
+
+def test_root_time_move_records_debug_metadata(monkeypatch):
+    tree = make_internal_a_tree()
+    root = tree.root
+
+    monkeypatch.setattr(tree, "sample_internal_node", lambda: root)
+    monkeypatch.setattr(np.random, "randn", lambda: 0.0)
+
+    node, old_time, log_hastings = tree.propose_local_time(step_size=1.0)
+
+    assert node == root
+    assert tree.last_time_move_debug["is_root"] is True
+    assert tree.last_time_move_debug["node"] == root
+    assert tree.last_time_move_debug["old_time"] == old_time
+    assert tree.last_time_move_debug["new_time"] == tree.time[root]
+    assert math.isfinite(log_hastings)
+
+
+def test_repeated_root_time_moves_do_not_immediately_run_away_with_prior_correction(monkeypatch):
+    tree = make_internal_a_tree()
+    root = tree.root
+
+    monkeypatch.setattr(tree, "sample_internal_node", lambda: root)
+    np.random.seed(123)
+    random.seed(123)
+
+    max_root_time = float(tree.time[root])
+    for _ in range(2000):
+        old_time = float(tree.time[root])
+        old_prior = tree.log_likelihood()
+        _, _, log_hastings = tree.propose_local_time(step_size=1.0)
+        new_prior = tree.log_likelihood()
+        alpha = (new_prior - old_prior) + log_hastings
+        if math.log(random.random()) < alpha:
+            max_root_time = max(max_root_time, float(tree.time[root]))
+        else:
+            tree.time[root] = old_time
+
+    assert math.isfinite(tree.time[root])
+    assert max_root_time < 1e6
