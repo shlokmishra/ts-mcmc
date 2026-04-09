@@ -60,12 +60,10 @@ htmlcov/
 # default: ignore generated benchmark outputs
 benchmark_outputs/**
 
-# keep only medium comparison aggregates
+# keep manifests only
 !benchmark_outputs/
-!benchmark_outputs/mcmc_medium_comparison_18316758/
-!benchmark_outputs/mcmc_medium_comparison_18316758/aggregate/
-!benchmark_outputs/mcmc_medium_comparison_18316758/aggregate/**
-!benchmark_outputs/mcmc_medium_comparison_18316758/aggregate_summary.csv
+!benchmark_outputs/manifests/
+!benchmark_outputs/manifests/**
 
 # cluster logs
 slurm-*.out

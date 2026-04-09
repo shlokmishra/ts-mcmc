@@ -5,7 +5,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 # 1M-step guarded local_spr pilot at n=64.
-# Recent medium sweep runtime was about 4.2h projected; request 8h for headroom.
+# Post-fix 200k stress run finished in about 24 minutes, so 1M projects to about 2 hours.
+# Request 8h anyway for queue variance, checkpoints, and safe headroom.
 #SBATCH --time=08:00:00
 #SBATCH --partition=long
 #SBATCH --output=slurm-%x-%j.out
