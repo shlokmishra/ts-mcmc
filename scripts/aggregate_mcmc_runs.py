@@ -34,11 +34,17 @@ def write_rows_csv(rows: list[dict], output_path: Path) -> None:
 
 
 def write_comparison_table(rows: list[dict], output_path: Path) -> None:
-    lines = ["proposal_type,seed,final_acceptance_rate,total_runtime_s,log_likelihood_mean"]
+    lines = [
+        "proposal_type,seed,final_acceptance_rate,mean_rolling_acceptance_rate,"
+        "log_likelihood_ess,log_target_ess,total_runtime_s,mean_log_hastings,"
+        "root_time_min,root_time_max,root_time_last"
+    ]
     for row in rows:
         lines.append(
             f"{row['proposal_type']},{row['seed']},{row['final_acceptance_rate']},"
-            f"{row['total_runtime_s']},{row['log_likelihood_mean']}"
+            f"{row.get('mean_rolling_acceptance_rate')},{row.get('log_likelihood_ess')},"
+            f"{row.get('log_target_ess')},{row['total_runtime_s']},{row.get('mean_log_hastings')},"
+            f"{row.get('root_time_min')},{row.get('root_time_max')},{row.get('root_time_last')}"
         )
     output_path.write_text("\n".join(lines) + "\n")
 
@@ -48,17 +54,21 @@ def make_comparison_plot(rows: list[dict], output_path: Path) -> None:
     for row in rows:
         grouped.setdefault(row["proposal_type"], []).append(row)
 
-    fig, axes = plt.subplots(1, 2, figsize=(8, 3.8), constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), constrained_layout=True)
     for proposal_type, values in grouped.items():
         xs = [row["seed"] for row in values]
         axes[0].plot(xs, [row["final_acceptance_rate"] for row in values], marker="o", label=proposal_type)
-        axes[1].plot(xs, [row["total_runtime_s"] for row in values], marker="o", label=proposal_type)
+        axes[1].plot(xs, [row["log_target_ess"] for row in values], marker="o", label=proposal_type)
+        axes[2].plot(xs, [row["total_runtime_s"] for row in values], marker="o", label=proposal_type)
     axes[0].set_title("Final Acceptance by Seed")
     axes[0].set_xlabel("Seed")
     axes[0].set_ylabel("Acceptance Rate")
-    axes[1].set_title("Runtime by Seed")
+    axes[1].set_title("Log Target ESS by Seed")
     axes[1].set_xlabel("Seed")
-    axes[1].set_ylabel("Runtime (s)")
+    axes[1].set_ylabel("ESS")
+    axes[2].set_title("Runtime by Seed")
+    axes[2].set_xlabel("Seed")
+    axes[2].set_ylabel("Runtime (s)")
     for ax in axes:
         ax.grid(alpha=0.2)
         ax.legend()

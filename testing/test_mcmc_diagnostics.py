@@ -200,3 +200,27 @@ def test_run_logged_chain_guard_aborts_cleanly(tmp_path):
     assert result["summary"]["guard_reason"] is not None
     assert (result["run_dir"] / "checkpoints" / "guard_event.json").exists()
     assert (result["run_dir"] / "plots" / "plot_skipped.txt").exists()
+
+
+def test_trace_every_downsamples_rows_but_keeps_root_summary(tmp_path):
+    result = run_logged_chain(
+        tmp_path,
+        RunConfig(
+            proposal_type="local_spr",
+            seed=9,
+            sample_size=5,
+            seq_length=6,
+            steps=20,
+            trace_every=5,
+            checkpoint_every=5,
+        ),
+        make_plots=False,
+    )
+
+    rows = load_trace_rows(result["trace_csv_path"])
+    assert len(rows) == 4
+    assert result["summary"]["trace_every"] == 5
+    assert result["summary"]["trace_rows_written"] == 4
+    assert result["summary"]["root_time_min"] is not None
+    assert result["summary"]["root_time_max"] is not None
+    assert result["summary"]["root_time_last"] is not None

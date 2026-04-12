@@ -135,13 +135,18 @@ def default_run_name(
 
 
 class CSVTraceLogger:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, trace_every: int = 1):
         self.path = path
+        self.trace_every = max(1, int(trace_every))
         self.handle = open(path, "w", newline="")
         self.writer = csv.DictWriter(self.handle, fieldnames=TRACE_FIELDS)
         self.writer.writeheader()
+        self.rows_written = 0
 
     def __call__(self, row: dict) -> None:
+        iteration = int(row["iteration"])
+        if iteration % self.trace_every != 0:
+            return
         cleaned = {}
         for field in TRACE_FIELDS:
             value = row.get(field)
@@ -151,6 +156,7 @@ class CSVTraceLogger:
                 cleaned[field] = to_jsonable(value)
         self.writer.writerow(cleaned)
         self.handle.flush()
+        self.rows_written += 1
 
     def close(self) -> None:
         self.handle.close()
@@ -176,6 +182,9 @@ class GuardedTraceLogger:
         self.enable_guard = enable_guard
         self.last_checkpoint_path = self.checkpoints_dir / "latest.json"
         self.guard_event_path = self.checkpoints_dir / "guard_event.json"
+        self.root_time_min = math.inf
+        self.root_time_max = -math.inf
+        self.root_time_last = None
 
     def _write_json(self, path: Path, payload: dict) -> None:
         path.write_text(json.dumps(to_jsonable(payload), indent=2))
@@ -212,6 +221,13 @@ class GuardedTraceLogger:
         }
 
     def __call__(self, row: dict) -> None:
+        root_time = row.get("root_time")
+        if root_time is not None:
+            root_time = float(root_time)
+            self.root_time_last = root_time
+            if math.isfinite(root_time):
+                self.root_time_min = min(self.root_time_min, root_time)
+                self.root_time_max = max(self.root_time_max, root_time)
         self.csv_logger(row)
         iteration = int(row["iteration"])
         if iteration % self.checkpoint_every == 0:
@@ -236,6 +252,19 @@ class GuardedTraceLogger:
 
     def close(self) -> None:
         self.csv_logger.close()
+
+    def summary_stats(self) -> dict:
+        root_min = None if not math.isfinite(self.root_time_min) else float(self.root_time_min)
+        root_max = None if not math.isfinite(self.root_time_max) else float(self.root_time_max)
+        return {
+            "root_time_min": root_min,
+            "root_time_max": root_max,
+            "root_time_last": (
+                None if self.root_time_last is None else float(self.root_time_last)
+            ),
+            "trace_rows_written": int(self.csv_logger.rows_written),
+            "trace_every": int(self.csv_logger.trace_every),
+        }
 
 
 def load_trace_rows(trace_csv_path: Path) -> list[dict]:
@@ -286,13 +315,12 @@ def finite_only(values: list[float]) -> list[float]:
 
 
 def summarize_trace_rows(rows: list[dict], burn_in: int) -> dict:
-    post_rows = rows[burn_in:] if burn_in < len(rows) else []
+    post_rows = [row for row in rows if int(row["iteration"]) >= burn_in]
     if not rows:
         raise ValueError("Cannot summarize an empty trace.")
     if not post_rows:
         post_rows = rows
 
-    acceptance = [1.0 if row["accepted"] else 0.0 for row in rows]
     rolling = [float(row["rolling_acceptance_rate"]) for row in rows]
     loglik = finite_only([float(row["log_likelihood"]) for row in post_rows])
     target = finite_only([float(row["log_target"]) for row in post_rows])
@@ -303,9 +331,9 @@ def summarize_trace_rows(rows: list[dict], burn_in: int) -> dict:
     summary = {
         "proposal_type": rows[-1]["proposal_type"],
         "seed": None,
-        "iterations": len(rows),
+        "iterations": int(rows[-1]["iteration"]) + 1,
         "burn_in": burn_in,
-        "final_acceptance_rate": float(np.mean(acceptance)),
+        "final_acceptance_rate": None,
         "mean_rolling_acceptance_rate": float(np.mean(rolling)),
         "log_likelihood_mean": mean_std(loglik)[0],
         "log_likelihood_sd": mean_std(loglik)[1],
@@ -347,11 +375,11 @@ def summarize_trace_rows(rows: list[dict], burn_in: int) -> dict:
 
 @dataclass
 class RunConfig:
-    proposal_type: str
     seed: int
     sample_size: int
     seq_length: int
     steps: int
+    proposal_type: str = "local_spr"
     burn_in: int = 0
     mutation_step_size: float = 0.1
     time_move: str = "local"
@@ -365,6 +393,7 @@ class RunConfig:
     checkpoint_every: int = 10000
     enable_guard: bool = True
     guard_magnitude_limit: float = DEFAULT_MAGNITUDE_LIMIT
+    trace_every: int = 1
 
 
 def run_logged_chain(
@@ -414,7 +443,7 @@ def run_logged_chain(
     pi = np.array([0.5, 0.5])
 
     logger = GuardedTraceLogger(
-        CSVTraceLogger(trace_csv_path),
+        CSVTraceLogger(trace_csv_path, trace_every=config.trace_every),
         checkpoints_dir=checkpoints_dir,
         checkpoint_every=config.checkpoint_every,
         guard_magnitude_limit=config.guard_magnitude_limit,
@@ -455,12 +484,15 @@ def run_logged_chain(
             "sample_size": config.sample_size,
             "seq_length": config.seq_length,
             "steps": config.steps,
+            "iterations": config.steps,
             "burn_in": config.burn_in,
+            "final_acceptance_rate": (None if acceptances is None else float(acceptances[0])),
             "acceptance_spr": (None if acceptances is None else float(acceptances[0])),
             "acceptance_times": (None if acceptances is None else float(acceptances[1])),
             "acceptance_mutation": (None if acceptances is None else float(acceptances[2])),
             "run_status": status,
             "guard_reason": guard_reason,
+            **logger.summary_stats(),
         }
     )
     summary_json_path.write_text(json.dumps(summary, indent=2))

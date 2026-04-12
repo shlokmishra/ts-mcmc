@@ -13,6 +13,7 @@
       "spr_moves_per_step": 2,
       "acceptance_window": 1000,
       "checkpoint_every": 10000,
+      "trace_every": 1000,
       "enable_guard": true,
       "guard_magnitude_limit": 1e100
     }

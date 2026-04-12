@@ -13,7 +13,7 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
                  record=True, compute_gradients=True, print_every=10,
                  mutation_step_size=None, time_move="global", time_step_size=1.0,
                  spr_local_k=None, spr_moves_per_step=1,
-                 spr_proposal="spr", spr_debug=False,
+                 spr_proposal="local_spr", spr_debug=False,
                  iteration_logger=None, acceptance_window=100):
     """
     Performs Markov Chain Monte Carlo (MCMC) sampling on a phylogenetic tree
@@ -44,8 +44,8 @@ def kingman_mcmc(tree, recorder, pi, steps=None, step_size=0.1,
     - spr_moves_per_step: int
         Number of SPR proposals attempted per outer MCMC iteration.
     - spr_proposal: {"spr", "local_spr"}
-        Select the baseline global SPR proposal or the new explicit local SPR
-        neighborhood proposal.
+        Select the legacy global SPR proposal or the canonical local SPR
+        neighborhood proposal. `local_spr` is now the default experiment path.
     - spr_debug: bool
         If True, store and print structured SPR proposal metadata.
     - iteration_logger: callable or None

@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=ts-local-spr-1m-n64
-#SBATCH --array=0-2
+#SBATCH --job-name=ts-local-spr-1m-n64-b2
+#SBATCH --array=0-4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-# 3 independent guarded 1M local_spr chains at n=64, one seed per array task.
-# 200k post-fix run projected about 2h per 1M chain; request 8h for safe headroom.
+# 5 additional guarded 1M local_spr chains at n=64, one seed per array task.
+# Sparse trace logging is enabled to cut I/O overhead versus the first 1M batch.
 #SBATCH --time=08:00:00
 #SBATCH --partition=long
 #SBATCH --output=slurm-%x-%A_%a.out
@@ -24,7 +24,7 @@ export MPLBACKEND=Agg
 export UV_CACHE_DIR="${UV_CACHE_DIR:-/scratch/user/shlokmishra08/uv-cache}"
 
 readonly PY="/scratch/user/shlokmishra08/virtual_envs/gkdvenv/bin/python"
-readonly SEEDS=(11 22 33)
+readonly SEEDS=(44 55 66 77 88)
 readonly SEED="${SEEDS[${SLURM_ARRAY_TASK_ID}]}"
 readonly OUTPUT_ROOT="benchmark_outputs/local_spr_1m_n64_seed_${SEED}_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
 

@@ -19,6 +19,8 @@ def run_configs(configs: list[RunConfig], output_root: str | Path, make_plots: b
 
 def build_single_config(args) -> RunConfig:
     return RunConfig(
+        # local_spr is the canonical production topology move; pass --proposal-type spr
+        # only for legacy/reproducibility comparisons.
         proposal_type=args.proposal_type,
         seed=args.seed,
         sample_size=args.sample_size,
@@ -37,6 +39,7 @@ def build_single_config(args) -> RunConfig:
         checkpoint_every=args.checkpoint_every,
         enable_guard=not args.disable_guard,
         guard_magnitude_limit=args.guard_magnitude_limit,
+        trace_every=args.trace_every,
     )
 
 
@@ -44,7 +47,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-root", type=str, default="benchmark_outputs/mcmc_runs")
     parser.add_argument("--manifest", type=str, default=None)
-    parser.add_argument("--proposal-type", type=str, choices=["spr", "local_spr"], default="spr")
+    parser.add_argument("--proposal-type", type=str, choices=["spr", "local_spr"], default="local_spr")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--sample-size", type=int, default=8)
     parser.add_argument("--seq-length", type=int, default=20)
@@ -57,6 +60,7 @@ def main() -> None:
     parser.add_argument("--spr-moves-per-step", type=int, default=1)
     parser.add_argument("--acceptance-window", type=int, default=25)
     parser.add_argument("--checkpoint-every", type=int, default=10000)
+    parser.add_argument("--trace-every", type=int, default=1)
     parser.add_argument("--guard-magnitude-limit", type=float, default=1e100)
     parser.add_argument("--disable-guard", action="store_true")
     parser.add_argument("--compute-gradients", action="store_true")
